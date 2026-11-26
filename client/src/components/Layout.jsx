@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   Cake,
+  Heart,
   Package,
   ShieldCheck,
   LogOut,
@@ -20,6 +21,7 @@ export default function Layout({
     { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard },
     { id: 'devotees', label: t.navDevotees, icon: Users },
     { id: 'birthdays', label: t.navBirthdays, icon: Cake },
+    { id: 'anniversaries', label: t.navAnniversaries, icon: Heart },
     { id: 'parcels', label: t.navParcels, icon: Package },
   ];
 

@@ -28,6 +28,7 @@ function formatDobToIso(dobStr) {
 
 function enrichDevotee(row, wishedMap, refDate) {
   const bday = computeBirthdayInfo(row.dob, refDate);
+  const anniv = computeBirthdayInfo(row.anniversary_date, refDate);
   const phoneStr = row.contact_no ? String(row.contact_no) : '';
   const whatsappStr = row.whatsapp_no ? String(row.whatsapp_no) : '';
   const wishRow = wishedMap.get(String(row.id));
@@ -44,6 +45,13 @@ function enrichDevotee(row, wishedMap, refDate) {
     spiritual_name: row.initiated_name || '',
     photo_url: normalizePhotoUrl(upload_your_passport_size_photo),
     dob_iso: formatDobToIso(row.dob),
+    anniversary_iso: formatDobToIso(row.anniversary_date),
+    anniversary_month: anniv.birth_month,
+    anniversary_day: anniv.birth_day,
+    anniversary_years: anniv.age,
+    anniversary_next_years: anniv.turning_age,
+    days_until_anniversary: anniv.days_until_birthday,
+    is_anniversary_today: anniv.is_birthday_today,
     status: 'active',
     ...bday,
     wished_this_year: Boolean(wishRow && wishRow.channel !== 'GiftOnly'),
