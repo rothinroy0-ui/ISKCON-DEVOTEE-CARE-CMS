@@ -48,38 +48,59 @@ export default function Anniversaries() {
     setError('');
     try {
       const dev = await apiRequest('/api/devotees');
-      const norm = (val) =>
+      const cleanName = (val) =>
         String(val || '')
-          .trim()
           .toLowerCase()
-          .replace(/\s+/g, ' ');
+          .replace(/[.,;:'"()\-]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const isValidSpouse = (s) =>
+        Boolean(s) && !['null', 'none', 'na', 'n a', 'nil'].includes(s);
 
       const raw = (dev.devotees || []).filter(
         (d) => d.anniversary_month !== null && d.anniversary_day !== null
       );
 
-      const coupleMap = new Map();
       const deduped = [];
 
       for (const d of raw) {
-        const nameA = norm(d.full_name);
-        const nameB = norm(d.spouses_name);
+        const selfNames = [
+          cleanName(d.full_name),
+          cleanName(d.initiated_name || d.spiritual_name),
+        ].filter(Boolean);
+        const spouse = cleanName(d.spouses_name);
 
-        if (nameA && nameB && nameB !== 'null' && nameB !== 'none' && nameB !== 'na' && nameB !== 'n/a') {
-          const pairKey = [nameA, nameB].sort().join('|');
-          const key = `${d.anniversary_month}-${d.anniversary_day}|${pairKey}`;
-          const existingIdx = coupleMap.get(key);
-          if (existingIdx !== undefined) {
-            const existing = deduped[existingIdx];
-            // Prefer keeping photo_url if existing didn't have one
-            if (!existing.photo_url && d.photo_url) {
-              deduped[existingIdx] = { ...d, partner_devotee: existing };
-            } else {
-              deduped[existingIdx] = { ...existing, partner_devotee: d };
+        let matchIdx = -1;
+        if (selfNames.length > 0 && isValidSpouse(spouse)) {
+          matchIdx = deduped.findIndex((ex) => {
+            if (
+              ex.anniversary_month !== d.anniversary_month ||
+              ex.anniversary_day !== d.anniversary_day
+            ) {
+              return false;
             }
-            continue;
+            const exSelfNames = [
+              cleanName(ex.full_name),
+              cleanName(ex.initiated_name || ex.spiritual_name),
+            ].filter(Boolean);
+            const exSpouse = cleanName(ex.spouses_name);
+            if (!isValidSpouse(exSpouse)) return false;
+
+            const dSpouseMatchesEx = exSelfNames.includes(spouse);
+            const exSpouseMatchesD = selfNames.includes(exSpouse);
+            return dSpouseMatchesEx && exSpouseMatchesD;
+          });
+        }
+
+        if (matchIdx !== -1) {
+          const existing = deduped[matchIdx];
+          if (!existing.photo_url && d.photo_url) {
+            deduped[matchIdx] = { ...d, partner_devotee: existing };
+          } else {
+            deduped[matchIdx] = { ...existing, partner_devotee: d };
           }
-          coupleMap.set(key, deduped.length);
+          continue;
         }
         deduped.push(d);
       }
