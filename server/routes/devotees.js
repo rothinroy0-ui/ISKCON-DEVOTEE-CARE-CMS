@@ -1,0 +1,521 @@
+const express = require('express');
+const { logAudit } = require('../db');
+const { computeBirthdayInfo, getLocalToday, parseDob } = require('../utils/birthday');
+
+function normalizePhotoUrl(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  const driveMatch = s.match(/drive\.google\.com\/open\?id=([^&\s]+)/i) ||
+    s.match(/drive\.google\.com\/file\/d\/([^/\s]+)/i);
+  if (driveMatch) {
+    return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w200`;
+  }
+  return s;
+}
+
+function parsePhoneBigint(val) {
+  if (val === undefined || val === null || val === '') return null;
+  const digits = String(val).replace(/\D/g, '');
+  if (!digits) return null;
+  return digits;
+}
+
+function formatDobToIso(dobStr) {
+  const parsed = parseDob(dobStr);
+  if (!parsed) return '';
+  return `${parsed.year}-${String(parsed.month).padStart(2, '0')}-${String(parsed.day).padStart(2, '0')}`;
+}
+
+function enrichDevotee(row, wishedMap, refDate) {
+  const bday = computeBirthdayInfo(row.dob, refDate);
+  const phoneStr = row.contact_no ? String(row.contact_no) : '';
+  const whatsappStr = row.whatsapp_no ? String(row.whatsapp_no) : '';
+  const wishRow = wishedMap.get(String(row.id));
+  return {
+    ...row,
+    id: row.id,
+    devotee_id: row.devotee_id || `ISKCON_DGP_${String(row.id).padStart(3, '0')}`,
+    phone: phoneStr,
+    contact_no: phoneStr,
+    whatsapp_no: whatsappStr,
+    city: row.town_city || '',
+    address: row.full_address || '',
+    spiritual_name: row.initiated_name || '',
+    photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
+    dob_iso: formatDobToIso(row.dob),
+    status: 'active',
+    ...bday,
+    wished_this_year: Boolean(wishRow && wishRow.channel !== 'GiftOnly'),
+    gift_status: wishRow?.gift_status || 'none',
+  };
+}
+
+function createDevoteeRoutes(db, { requireAuth, requireRole }) {
+  const router = express.Router();
+  router.use(requireAuth);
+
+  async function getWishedSet(year) {
+    const res = await db.query(
+      'SELECT devotee_id, channel, gift_status FROM devotee_birthday_wishes WHERE wish_year = $1',
+      [year]
+    );
+    return new Map(res.rows.map((r) => [String(r.devotee_id), r]));
+  }
+
+  async function generateNextId() {
+    const r = await db.query('SELECT devotee_id FROM devotee_data');
+    let maxNum = 0;
+    for (const row of r.rows) {
+      const m = String(row.devotee_id || '').match(/(\d+)$/);
+      if (m) {
+        const n = Number(m[1]);
+        if (n > maxNum) maxNum = n;
+      }
+    }
+    return `ISKCON_DGP_${String(maxNum + 1).padStart(3, '0')}`;
+  }
+
+  router.get('/', async (req, res, next) => {
+    try {
+      const { search = '', month = '', sort = 'upcoming_birthday' } = req.query;
+      const refDate = getLocalToday();
+      const wishedSet = await getWishedSet(refDate.getFullYear());
+
+      const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
+      let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate));
+
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        list = list.filter(
+          (d) =>
+            (d.devotee_id && d.devotee_id.toLowerCase().includes(q)) ||
+            (d.full_name && d.full_name.toLowerCase().includes(q)) ||
+            (d.initiated_name && d.initiated_name.toLowerCase().includes(q)) ||
+            (d.contact_no && d.contact_no.toLowerCase().includes(q)) ||
+            (d.town_city && d.town_city.toLowerCase().includes(q)) ||
+            (d.full_address && d.full_address.toLowerCase().includes(q)) ||
+            (d.teacher_name && d.teacher_name.toLowerCase().includes(q))
+        );
+      }
+
+      if (month && !Number.isNaN(Number(month))) {
+        const m = Number(month);
+        list = list.filter((d) => d.birth_month === m);
+      }
+
+      if (sort === 'upcoming_birthday') {
+        list.sort((a, b) => (a.days_until_birthday ?? 999) - (b.days_until_birthday ?? 999));
+      } else if (sort === 'name') {
+        list.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+      } else if (sort === 'newest') {
+        list.sort((a, b) => String(b.devotee_id).localeCompare(String(a.devotee_id)));
+      }
+
+      res.json({ devotees: list });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/next-id', async (_req, res, next) => {
+    try {
+      const next_id = await generateNextId();
+      res.json({ next_id });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/export/csv', async (_req, res, next) => {
+    try {
+      const refDate = getLocalToday();
+      const wishedSet = await getWishedSet(refDate.getFullYear());
+      const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
+      const list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate));
+
+      const headers = [
+        'Devotee ID',
+        'Full Name',
+        'Fathers Name',
+        'Spouses Name',
+        'Initiated Name',
+        'Contact No',
+        'WhatsApp No',
+        'DOB',
+        'Age',
+        'Days Until Birthday',
+        'Gender',
+        'Blood Group',
+        'Town / City',
+        'Full Address',
+        'Teacher Name',
+        'Spiritual Master',
+        'First Initiation Date',
+        'Second Initiation Date',
+        'Anniversary Date',
+        'Wished This Year',
+      ];
+
+      const escapeCsv = (val) => {
+        const str = String(val ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvLines = [
+        headers.join(','),
+        ...list.map((d) =>
+          [
+            d.devotee_id,
+            d.full_name,
+            d.fathers_name,
+            d.spouses_name,
+            d.initiated_name,
+            d.contact_no,
+            d.whatsapp_no,
+            d.dob,
+            d.age,
+            d.days_until_birthday,
+            d.gender,
+            d.blood_group,
+            d.town_city,
+            d.full_address,
+            d.teacher_name,
+            d.spiritual_master,
+            d.first_initiation_date,
+            d.second_initiation_date,
+            d.anniversary_date,
+            d.wished_this_year ? 'Yes' : 'No',
+          ]
+            .map(escapeCsv)
+            .join(',')
+        ),
+      ];
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="devotees_iskcon_durgapur.csv"');
+      res.send('\uFEFF' + csvLines.join('\r\n'));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/:id', async (req, res, next) => {
+    try {
+      const result = await db.query('SELECT * FROM devotee_data WHERE id = $1', [Number(req.params.id)]);
+      const row = result.rows[0];
+      if (!row) return res.status(404).json({ error: 'Devotee not found' });
+      const refDate = getLocalToday();
+      const wishedSet = await getWishedSet(refDate.getFullYear());
+      res.json({ devotee: enrichDevotee(row, wishedSet, refDate) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const {
+        devotee_id,
+        full_name,
+        fathers_name,
+        spouses_name,
+        dob,
+        gender,
+        contact_no,
+        phone,
+        whatsapp_no,
+        blood_group,
+        town_city,
+        city,
+        full_address,
+        address,
+        teacher_name,
+        spiritual_master,
+        initiated_name,
+        spiritual_name,
+        first_initiation_date,
+        second_initiation_date,
+        anniversary_date,
+        upload_your_passport_size_photo,
+        photo_url,
+      } = req.body || {};
+
+      const contactBigint = parsePhoneBigint(contact_no || phone);
+      if (!full_name || !contactBigint || !dob) {
+        return res.status(400).json({ error: 'Full name, contact number, and date of birth are required' });
+      }
+      if (!parseDob(dob)) {
+        return res.status(400).json({ error: 'Please provide a valid date of birth' });
+      }
+
+      const finalDevoteeId = devotee_id
+        ? String(devotee_id).trim().toUpperCase()
+        : await generateNextId();
+
+      const dup = await db.query('SELECT devotee_id FROM devotee_data WHERE devotee_id = $1', [
+        finalDevoteeId,
+      ]);
+      if (dup.rows.length > 0) {
+        return res.status(409).json({ error: `Devotee ID "${finalDevoteeId}" already exists` });
+      }
+
+      const inserted = await db.query(
+        `INSERT INTO devotee_data (
+          devotee_id, full_name, fathers_name, spouses_name, dob, gender,
+          contact_no, whatsapp_no, blood_group, town_city, full_address,
+          teacher_name, spiritual_master, initiated_name,
+          first_initiation_date, second_initiation_date, anniversary_date,
+          upload_your_passport_size_photo
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11,
+          $12, $13, $14,
+          $15, $16, $17,
+          $18
+        )
+        RETURNING *`,
+        [
+          finalDevoteeId,
+          String(full_name).trim(),
+          fathers_name ? String(fathers_name).trim() : null,
+          spouses_name ? String(spouses_name).trim() : null,
+          String(dob).trim(),
+          gender || 'Male',
+          contactBigint,
+          parsePhoneBigint(whatsapp_no),
+          blood_group ? String(blood_group).trim() : null,
+          (town_city || city) ? String(town_city || city).trim() : null,
+          (full_address || address) ? String(full_address || address).trim() : null,
+          teacher_name ? String(teacher_name).trim() : null,
+          spiritual_master ? String(spiritual_master).trim() : null,
+          (initiated_name || spiritual_name) ? String(initiated_name || spiritual_name).trim() : null,
+          first_initiation_date ? String(first_initiation_date).trim() : null,
+          second_initiation_date ? String(second_initiation_date).trim() : null,
+          anniversary_date ? String(anniversary_date).trim() : null,
+          upload_your_passport_size_photo || photo_url || null,
+        ]
+      );
+
+      const created = inserted.rows[0];
+      const refDate = getLocalToday();
+      const wishedSet = await getWishedSet(refDate.getFullYear());
+
+      await logAudit(db, req.user, 'CREATE_DEVOTEE', 'DEVOTEE', null, `Registered ${created.full_name} (${created.devotee_id})`);
+      res.status(201).json({ devotee: enrichDevotee(created, wishedSet, refDate) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.put('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const existingRes = await db.query('SELECT * FROM devotee_data WHERE id = $1', [targetId]);
+      const existing = existingRes.rows[0];
+      if (!existing) {
+        return res.status(404).json({ error: 'Devotee not found' });
+      }
+
+      const {
+        devotee_id,
+        full_name,
+        fathers_name,
+        spouses_name,
+        dob,
+        gender,
+        contact_no,
+        phone,
+        whatsapp_no,
+        blood_group,
+        town_city,
+        city,
+        full_address,
+        address,
+        teacher_name,
+        spiritual_master,
+        initiated_name,
+        spiritual_name,
+        first_initiation_date,
+        second_initiation_date,
+        anniversary_date,
+        upload_your_passport_size_photo,
+        photo_url,
+      } = req.body || {};
+
+      if (dob !== undefined && !parseDob(dob)) {
+        return res.status(400).json({ error: 'Please provide a valid date of birth' });
+      }
+
+      const nextDevoteeId =
+        devotee_id !== undefined && String(devotee_id).trim()
+          ? String(devotee_id).trim().toUpperCase()
+          : existing.devotee_id;
+
+      if (nextDevoteeId !== existing.devotee_id) {
+        const dup = await db.query('SELECT devotee_id FROM devotee_data WHERE devotee_id = $1', [
+          nextDevoteeId,
+        ]);
+        if (dup.rows.length > 0) {
+          return res.status(409).json({ error: `Devotee ID "${nextDevoteeId}" already exists` });
+        }
+      }
+
+      const nextFullName = full_name !== undefined ? String(full_name).trim() : existing.full_name;
+      const rawContact = contact_no !== undefined ? contact_no : phone;
+      const nextContact = rawContact !== undefined ? parsePhoneBigint(rawContact) : existing.contact_no;
+      if (!nextFullName || !nextContact) {
+        return res.status(400).json({ error: 'Full name and contact number cannot be empty' });
+      }
+
+      const rawCity = town_city !== undefined ? town_city : city;
+      const rawAddr = full_address !== undefined ? full_address : address;
+      const rawInit = initiated_name !== undefined ? initiated_name : spiritual_name;
+      const rawPhoto = upload_your_passport_size_photo !== undefined ? upload_your_passport_size_photo : photo_url;
+
+      const updatedRes = await db.query(
+        `UPDATE devotee_data SET
+          devotee_id = $1,
+          full_name = $2,
+          fathers_name = $3,
+          spouses_name = $4,
+          dob = $5,
+          gender = $6,
+          contact_no = $7,
+          whatsapp_no = $8,
+          blood_group = $9,
+          town_city = $10,
+          full_address = $11,
+          teacher_name = $12,
+          spiritual_master = $13,
+          initiated_name = $14,
+          first_initiation_date = $15,
+          second_initiation_date = $16,
+          anniversary_date = $17,
+          upload_your_passport_size_photo = $18
+        WHERE id = $19
+        RETURNING *`,
+        [
+          nextDevoteeId,
+          nextFullName,
+          fathers_name !== undefined ? (fathers_name ? String(fathers_name).trim() : null) : existing.fathers_name,
+          spouses_name !== undefined ? (spouses_name ? String(spouses_name).trim() : null) : existing.spouses_name,
+          dob !== undefined ? String(dob).trim() : existing.dob,
+          gender !== undefined ? gender : existing.gender,
+          nextContact,
+          whatsapp_no !== undefined ? parsePhoneBigint(whatsapp_no) : existing.whatsapp_no,
+          blood_group !== undefined ? (blood_group ? String(blood_group).trim() : null) : existing.blood_group,
+          rawCity !== undefined ? (rawCity ? String(rawCity).trim() : null) : existing.town_city,
+          rawAddr !== undefined ? (rawAddr ? String(rawAddr).trim() : null) : existing.full_address,
+          teacher_name !== undefined ? (teacher_name ? String(teacher_name).trim() : null) : existing.teacher_name,
+          spiritual_master !== undefined ? (spiritual_master ? String(spiritual_master).trim() : null) : existing.spiritual_master,
+          rawInit !== undefined ? (rawInit ? String(rawInit).trim() : null) : existing.initiated_name,
+          first_initiation_date !== undefined ? (first_initiation_date ? String(first_initiation_date).trim() : null) : existing.first_initiation_date,
+          second_initiation_date !== undefined ? (second_initiation_date ? String(second_initiation_date).trim() : null) : existing.second_initiation_date,
+          anniversary_date !== undefined ? (anniversary_date ? String(anniversary_date).trim() : null) : existing.anniversary_date,
+          rawPhoto !== undefined ? (rawPhoto || null) : existing.upload_your_passport_size_photo,
+          targetId,
+        ]
+      );
+
+      const updated = updatedRes.rows[0];
+      const refDate = getLocalToday();
+      const wishedSet = await getWishedSet(refDate.getFullYear());
+
+      await logAudit(db, req.user, 'UPDATE_DEVOTEE', 'DEVOTEE', null, `Updated ${updated.full_name} (${updated.devotee_id})`);
+      res.json({ devotee: enrichDevotee(updated, wishedSet, refDate) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const existingRes = await db.query('SELECT id, devotee_id, full_name FROM devotee_data WHERE id = $1', [targetId]);
+      const existing = existingRes.rows[0];
+      if (!existing) {
+        return res.status(404).json({ error: 'Devotee not found' });
+      }
+
+      await db.query('DELETE FROM devotee_data WHERE id = $1', [targetId]);
+      await db.query('DELETE FROM devotee_birthday_wishes WHERE devotee_id = $1', [String(targetId)]);
+      await logAudit(db, req.user, 'DELETE_DEVOTEE', 'devotee_data', targetId, `Deleted ${existing.full_name} (${existing.devotee_id})`);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/wish', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const existingRes = await db.query('SELECT id, devotee_id, full_name FROM devotee_data WHERE id = $1', [targetId]);
+      const existing = existingRes.rows[0];
+      if (!existing) {
+        return res.status(404).json({ error: 'Devotee not found' });
+      }
+
+      const year = getLocalToday().getFullYear();
+      const { wished = true, channel = 'Call/Message', note = '' } = req.body || {};
+
+      if (wished) {
+        await db.query(
+          `INSERT INTO devotee_birthday_wishes (devotee_id, wish_year, wished_by, channel, note)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (devotee_id, wish_year) DO UPDATE SET
+             wished_by = EXCLUDED.wished_by,
+             channel = EXCLUDED.channel,
+             note = EXCLUDED.note,
+             wished_at = NOW()`,
+          [String(targetId), year, req.user.id, String(channel), String(note)]
+        );
+        await logAudit(db, req.user, 'BIRTHDAY_WISH', 'devotee_data', targetId, `Marked birthday wish for ${existing.full_name}`);
+      } else {
+        await db.query('DELETE FROM devotee_birthday_wishes WHERE devotee_id = $1 AND wish_year = $2', [String(targetId), year]);
+        await logAudit(db, req.user, 'BIRTHDAY_UNWISH', 'devotee_data', targetId, `Removed birthday wish for ${existing.full_name}`);
+      }
+
+      res.json({ ok: true, wished: Boolean(wished) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/gift', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const existingRes = await db.query('SELECT id, full_name FROM devotee_data WHERE id = $1', [targetId]);
+      const existing = existingRes.rows[0];
+      if (!existing) {
+        return res.status(404).json({ error: 'Devotee not found' });
+      }
+
+      const year = getLocalToday().getFullYear();
+      const { gift_status = 'none' } = req.body || {};
+      const validStatus = ['none', 'packed', 'in_transit', 'delivered'].includes(gift_status)
+        ? gift_status
+        : 'none';
+
+      await db.query(
+        `INSERT INTO devotee_birthday_wishes (devotee_id, wish_year, wished_by, channel, gift_status)
+         VALUES ($1, $2, $3, 'GiftOnly', $4)
+         ON CONFLICT (devotee_id, wish_year) DO UPDATE SET
+           gift_status = EXCLUDED.gift_status,
+           wished_by = EXCLUDED.wished_by`,
+        [String(targetId), year, req.user.id, validStatus]
+      );
+
+      await logAudit(db, req.user, 'BIRTHDAY_GIFT', 'devotee_data', targetId, `Gift status "${validStatus}" for ${existing.full_name}`);
+      res.json({ ok: true, gift_status: validStatus });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  return router;
+}
+
+module.exports = createDevoteeRoutes;
