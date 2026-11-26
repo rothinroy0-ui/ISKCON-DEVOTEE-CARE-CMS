@@ -6,7 +6,6 @@ import { ToastProvider } from './components/Toast';
 import Login from './pages/Login';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const RegisterDevotee = lazy(() => import('./pages/RegisterDevotee'));
 const Devotees = lazy(() => import('./pages/Devotees'));
 const Birthdays = lazy(() => import('./pages/Birthdays'));
 const Users = lazy(() => import('./pages/Users'));
@@ -70,9 +69,6 @@ export default function App() {
         >
           {activePage === 'dashboard' && (
             <Dashboard user={user} t={t} onNavigate={setActivePage} />
-          )}
-          {activePage === 'register' && (user.role === 'admin' || user.role === 'editor') && (
-            <RegisterDevotee t={t} onNavigate={setActivePage} />
           )}
           {activePage === 'devotees' && <Devotees user={user} t={t} />}
           {activePage === 'birthdays' && <Birthdays user={user} t={t} />}

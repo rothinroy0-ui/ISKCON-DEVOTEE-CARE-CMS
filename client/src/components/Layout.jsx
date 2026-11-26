@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   LayoutDashboard,
-  UserPlus,
   Users,
   Cake,
   ShieldCheck,
@@ -18,16 +17,9 @@ export default function Layout({
 }) {
   const navItems = [
     { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard },
-  ];
-
-  if (user?.role === 'admin' || user?.role === 'editor') {
-    navItems.push({ id: 'register', label: t.navRegistration, icon: UserPlus });
-  }
-
-  navItems.push(
     { id: 'devotees', label: t.navDevotees, icon: Users },
-    { id: 'birthdays', label: t.navBirthdays, icon: Cake }
-  );
+    { id: 'birthdays', label: t.navBirthdays, icon: Cake },
+  ];
 
   if (user?.role === 'admin') {
     navItems.push({ id: 'users', label: t.navUsers, icon: ShieldCheck });
