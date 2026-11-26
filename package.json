@@ -1,0 +1,16 @@
+{
+  "name": "devotee-cms-portal",
+  "version": "1.0.0",
+  "description": "Devotee Registration, Birthday Analytics & User Management CMS Portal",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "node server/index.js",
+    "start": "node server/index.js",
+    "build": "npm --prefix client run build"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^4.21.2",
+    "pg": "^8.23.1"
+  }
+}
