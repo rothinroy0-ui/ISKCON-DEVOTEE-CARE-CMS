@@ -8,6 +8,7 @@ import Login from './pages/Login';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Devotees = lazy(() => import('./pages/Devotees'));
 const Birthdays = lazy(() => import('./pages/Birthdays'));
+const Parcels = lazy(() => import('./pages/Parcels'));
 const Users = lazy(() => import('./pages/Users'));
 
 export default function App() {
@@ -72,6 +73,7 @@ export default function App() {
           )}
           {activePage === 'devotees' && <Devotees user={user} t={t} />}
           {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
+          {activePage === 'parcels' && <Parcels user={user} />}
           {activePage === 'users' && user.role === 'admin' && (
             <Users currentUser={user} t={t} />
           )}

@@ -7,9 +7,6 @@ import {
   Users,
   FileSpreadsheet,
   FileText,
-  Package,
-  Truck,
-  PackageCheck,
   Search,
   Sparkles,
   MapPin,
@@ -18,13 +15,6 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
-
-const GIFT_OPTIONS = [
-  { value: 'none', label: 'No Gift' },
-  { value: 'packed', label: 'Gifts Packed' },
-  { value: 'in_transit', label: 'In Transit' },
-  { value: 'delivered', label: 'Delivered' },
-];
 
 export default function Birthdays({ user, t }) {
   const toast = useToast();
@@ -152,21 +142,6 @@ export default function Birthdays({ user, t }) {
     [allDevotees]
   );
 
-  const giftsPackedCount = useMemo(
-    () => allDevotees.filter((d) => d.gift_status === 'packed').length,
-    [allDevotees]
-  );
-
-  const inTransitCount = useMemo(
-    () => allDevotees.filter((d) => d.gift_status === 'in_transit').length,
-    [allDevotees]
-  );
-
-  const deliveredCount = useMemo(
-    () => allDevotees.filter((d) => d.gift_status === 'delivered').length,
-    [allDevotees]
-  );
-
   const toggleWish = async (d) => {
     if (!canEdit) return;
     try {
@@ -181,26 +156,6 @@ export default function Birthdays({ user, t }) {
           : `Removed wish status for ${d.full_name}.`
       );
       await loadAll();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
-
-  const updateGiftStatus = async (d, giftStatus) => {
-    if (!canEdit) return;
-    try {
-      await apiRequest(`/api/devotees/${d.id}/gift`, {
-        method: 'POST',
-        body: JSON.stringify({ gift_status: giftStatus }),
-      });
-      setAllDevotees((prev) =>
-        prev.map((item) =>
-          item.id === d.id ? { ...item, gift_status: giftStatus } : item
-        )
-      );
-      const label =
-        GIFT_OPTIONS.find((o) => o.value === giftStatus)?.label || giftStatus;
-      toast.success(`Gift status for ${d.full_name} saved: ${label}`);
     } catch (err) {
       toast.error(err.message);
     }
@@ -243,8 +198,6 @@ export default function Birthdays({ user, t }) {
       'Contact No': d.contact_no || d.phone || '',
       'WhatsApp No': d.whatsapp_no || '',
       'Town / City': d.town_city || d.city || '',
-      'Gift Status':
-        GIFT_OPTIONS.find((g) => g.value === d.gift_status)?.label || 'No Gift',
       Wished: d.wished_this_year ? 'Yes' : 'No',
     }));
 
@@ -283,7 +236,6 @@ export default function Birthdays({ user, t }) {
           'Turning Age',
           'Contact No',
           'City',
-          'Gift Status',
           'Wished',
         ],
       ],
@@ -295,7 +247,6 @@ export default function Birthdays({ user, t }) {
         d.turning_age ?? '',
         d.contact_no || d.phone || '',
         d.town_city || d.city || '',
-        GIFT_OPTIONS.find((g) => g.value === d.gift_status)?.label || 'No Gift',
         d.wished_this_year ? 'Yes' : 'No',
       ]),
       styles: { fontSize: 8, cellPadding: 2.5 },
@@ -307,8 +258,8 @@ export default function Birthdays({ user, t }) {
 
   return (
     <div className="space-y-6">
-      {/* 5 Summary KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/80">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">
@@ -330,42 +281,6 @@ export default function Birthdays({ user, t }) {
           </div>
           <p className="mt-2 text-2xl font-bold text-rose-700">
             {todayAndTomorrowCount}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-200/80">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-700">
-              Gifts Packed
-            </span>
-            <Package className="h-4 w-4 text-amber-600" />
-          </div>
-          <p className="mt-2 text-2xl font-bold text-amber-700">
-            {giftsPackedCount}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-sky-200/80">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-sky-700">
-              In Transit
-            </span>
-            <Truck className="h-4 w-4 text-sky-600" />
-          </div>
-          <p className="mt-2 text-2xl font-bold text-sky-700">
-            {inTransitCount}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-emerald-200/80">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-700">
-              Delivered
-            </span>
-            <PackageCheck className="h-4 w-4 text-emerald-600" />
-          </div>
-          <p className="mt-2 text-2xl font-bold text-emerald-700">
-            {deliveredCount}
           </p>
         </div>
       </div>
@@ -690,32 +605,18 @@ export default function Birthdays({ user, t }) {
                   </div>
 
                   {canEdit && (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={d.gift_status || 'none'}
-                        onChange={(e) => updateGiftStatus(d, e.target.value)}
-                        className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none"
-                      >
-                        {GIFT_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={() => toggleWish(d)}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                          d.wished_this_year
-                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        {d.wished_this_year ? t.wished : t.markWished}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleWish(d)}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                        d.wished_this_year
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {d.wished_this_year ? t.wished : t.markWished}
+                    </button>
                   )}
                 </div>
               ))}

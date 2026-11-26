@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   Cake,
+  Package,
   ShieldCheck,
   LogOut,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ export default function Layout({
     { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard },
     { id: 'devotees', label: t.navDevotees, icon: Users },
     { id: 'birthdays', label: t.navBirthdays, icon: Cake },
+    { id: 'parcels', label: t.navParcels, icon: Package },
   ];
 
   if (user?.role === 'admin') {
