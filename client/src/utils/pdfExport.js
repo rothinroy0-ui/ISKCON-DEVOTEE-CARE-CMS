@@ -21,7 +21,7 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
     import('jspdf'),
     import('jspdf-autotable'),
   ]);
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 

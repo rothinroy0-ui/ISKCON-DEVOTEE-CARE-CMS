@@ -274,7 +274,7 @@ export default function Anniversaries() {
       import('jspdf-autotable'),
     ]);
     const label = activeMonthObj?.name || 'All_Months';
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new jsPDF({ orientation: 'portrait' });
 
     doc.setFontSize(15);
     doc.text(

@@ -215,7 +215,7 @@ export default function Parcels({ user }) {
       import('jspdf'),
       import('jspdf-autotable'),
     ]);
-    const doc = new jsPDF({ orientation: 'landscape' });
+    const doc = new jsPDF({ orientation: 'portrait' });
 
     doc.setFontSize(15);
     doc.text(
