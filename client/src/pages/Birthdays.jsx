@@ -31,11 +31,13 @@ export default function Birthdays({ user, t }) {
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(60);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
 
   const loadAll = async () => {
     setLoading(true);
+    setError('');
     try {
       const [ana, dev] = await Promise.all([
         apiRequest('/api/analytics/birthdays'),
@@ -45,6 +47,7 @@ export default function Birthdays({ user, t }) {
       setAllDevotees(dev.devotees || []);
     } catch (err) {
       console.error(err);
+      setError(err.message || 'Failed to load birthday data');
     } finally {
       setLoading(false);
     }
@@ -167,6 +170,21 @@ export default function Birthdays({ user, t }) {
     return (
       <div className="py-12 text-center text-sm text-slate-500">
         Loading birthday analytics...
+      </div>
+    );
+  }
+
+  if (error && !analytics && allDevotees.length === 0) {
+    return (
+      <div className="mx-auto my-8 max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+        <p className="text-sm font-semibold text-rose-800">{error}</p>
+        <button
+          type="button"
+          onClick={loadAll}
+          className="mt-3 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+        >
+          Retry
+        </button>
       </div>
     );
   }

@@ -12,6 +12,40 @@ const Birthdays = lazy(() => import('./pages/Birthdays'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const Users = lazy(() => import('./pages/Users'));
 
+class PageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="mx-auto my-12 max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center shadow-sm">
+          <h3 className="text-base font-bold text-rose-900">
+            Unable to load this page
+          </h3>
+          <p className="mt-1.5 text-xs text-rose-700">
+            {this.state.error?.message || 'A new version may have been deployed.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -63,23 +97,25 @@ export default function App() {
           onLogout={handleLogout}
           t={t}
         >
-          <Suspense
-            fallback={
-              <div className="py-12 text-center text-sm text-slate-500">
-                Loading page...
-              </div>
-            }
-          >
-            {activePage === 'dashboard' && (
-              <Dashboard user={user} t={t} onNavigate={setActivePage} />
-            )}
-            {activePage === 'devotees' && <Devotees user={user} t={t} />}
-            {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
-            {activePage === 'parcels' && <Parcels user={user} />}
-            {activePage === 'users' && user.role === 'admin' && (
-              <Users currentUser={user} t={t} />
-            )}
-          </Suspense>
+          <PageErrorBoundary key={activePage}>
+            <Suspense
+              fallback={
+                <div className="py-12 text-center text-sm text-slate-500">
+                  Loading page...
+                </div>
+              }
+            >
+              {activePage === 'dashboard' && (
+                <Dashboard user={user} t={t} onNavigate={setActivePage} />
+              )}
+              {activePage === 'devotees' && <Devotees user={user} t={t} />}
+              {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
+              {activePage === 'parcels' && <Parcels user={user} />}
+              {activePage === 'users' && user.role === 'admin' && (
+                <Users currentUser={user} t={t} />
+              )}
+            </Suspense>
+          </PageErrorBoundary>
         </Layout>
       </ImagePreviewProvider>
     </ToastProvider>
