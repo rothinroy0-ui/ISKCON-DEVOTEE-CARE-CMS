@@ -257,25 +257,32 @@ export default function Anniversaries() {
       head: [
         [
           'Devotee ID',
-          'Full Name',
-          'Initiated Name',
-          "Spouse's Name",
+          'Name (Initiated Name)',
+          'Spouse',
+          'Mobile',
           'Anniversary Date',
-          'Years',
-          'Contact No',
-          'City',
+          'Address',
         ],
       ],
-      body: filteredDevotees.map((d) => [
-        d.devotee_id || '',
-        d.full_name || '',
-        d.initiated_name || d.spiritual_name || '',
-        d.spouses_name || '',
-        d.anniversary_date || '',
-        d.anniversary_next_years ?? '',
-        d.contact_no || d.phone || '',
-        d.town_city || d.city || '',
-      ]),
+      body: filteredDevotees.map((d) => {
+        const initName = d.initiated_name || d.spiritual_name || '';
+        const nameWithInit = initName
+          ? `${d.full_name || ''} (${initName})`
+          : d.full_name || '';
+        const addr = d.full_address || d.address || '';
+        const city = d.town_city || d.city || '';
+        const fullAddr = addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+          ? `${addr}, ${city}`
+          : addr || city;
+        return [
+          d.devotee_id || '',
+          nameWithInit,
+          d.spouses_name || '',
+          d.contact_no || d.phone || '',
+          d.anniversary_date || '',
+          fullAddr,
+        ];
+      }),
       styles: { fontSize: 8, cellPadding: 2.5 },
       headStyles: { fillColor: [225, 29, 72] },
     });

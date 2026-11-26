@@ -39,15 +39,26 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
   // Table
   autoTable(doc, {
     startY: 88,
-    head: [['Devotee ID', 'Full Name', 'Phone', 'Date of Birth', 'City', 'Status']],
-    body: devotees.map((d) => [
-      d.devotee_id || `ISK-DGP-${String(d.id).padStart(4, '0')}`,
-      d.full_name || '',
-      d.phone || '',
-      d.dob || '',
-      d.city || '—',
-      formatStatus(d.status),
-    ]),
+    head: [['Devotee ID', 'Name (Initiated Name)', 'Mobile', 'Date of Birth', 'Address']],
+    body: devotees.map((d) => {
+      const initName = d.initiated_name || d.spiritual_name || '';
+      const nameWithInit = initName
+        ? `${d.full_name || ''} (${initName})`
+        : d.full_name || '';
+      const addr = d.full_address || d.address || '';
+      const city = d.town_city || d.city || '';
+      const fullAddr =
+        addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+          ? `${addr}, ${city}`
+          : addr || city || '—';
+      return [
+        d.devotee_id || `ISK-DGP-${String(d.id).padStart(4, '0')}`,
+        nameWithInit,
+        d.contact_no || d.phone || '',
+        d.dob || '',
+        fullAddr,
+      ];
+    }),
     theme: 'grid',
     styles: {
       font: 'helvetica',
@@ -67,8 +78,8 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
     alternateRowStyles: { fillColor: SLATE_50 },
     columnStyles: {
       0: { cellWidth: 95 },
-      3: { cellWidth: 85 },
-      5: { cellWidth: 65 },
+      2: { cellWidth: 85 },
+      3: { cellWidth: 80 },
     },
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN, bottom: 52 },
   });

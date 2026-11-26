@@ -250,25 +250,30 @@ export default function Birthdays({ user, t }) {
       head: [
         [
           'Devotee ID',
-          'Full Name',
-          'Initiated Name',
+          'Name (Initiated Name)',
+          'Mobile',
           'DOB',
-          'Turning Age',
-          'Contact No',
-          'City',
-          'Wished',
+          'Address',
         ],
       ],
-      body: filteredDevotees.map((d) => [
-        d.devotee_id || '',
-        d.full_name || '',
-        d.initiated_name || d.spiritual_name || '',
-        d.dob || '',
-        d.turning_age ?? '',
-        d.contact_no || d.phone || '',
-        d.town_city || d.city || '',
-        d.wished_this_year ? 'Yes' : 'No',
-      ]),
+      body: filteredDevotees.map((d) => {
+        const initName = d.initiated_name || d.spiritual_name || '';
+        const nameWithInit = initName
+          ? `${d.full_name || ''} (${initName})`
+          : d.full_name || '';
+        const addr = d.full_address || d.address || '';
+        const city = d.town_city || d.city || '';
+        const fullAddr = addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+          ? `${addr}, ${city}`
+          : addr || city;
+        return [
+          d.devotee_id || '',
+          nameWithInit,
+          d.contact_no || d.phone || '',
+          d.dob || '',
+          fullAddr,
+        ];
+      }),
       styles: { fontSize: 8, cellPadding: 2.5 },
       headStyles: { fillColor: [79, 70, 229] },
     });
