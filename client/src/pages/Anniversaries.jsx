@@ -48,14 +48,48 @@ export default function Anniversaries() {
     setError('');
     try {
       const dev = await apiRequest('/api/devotees');
-      const withAnniv = (dev.devotees || [])
-        .filter((d) => d.anniversary_month !== null && d.anniversary_day !== null)
-        .sort(
-          (a, b) =>
-            (a.days_until_anniversary ?? 9999) -
-            (b.days_until_anniversary ?? 9999)
-        );
-      setAllDevotees(withAnniv);
+      const norm = (val) =>
+        String(val || '')
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, ' ');
+
+      const raw = (dev.devotees || []).filter(
+        (d) => d.anniversary_month !== null && d.anniversary_day !== null
+      );
+
+      const coupleMap = new Map();
+      const deduped = [];
+
+      for (const d of raw) {
+        const nameA = norm(d.full_name);
+        const nameB = norm(d.spouses_name);
+
+        if (nameA && nameB && nameB !== 'null' && nameB !== 'none' && nameB !== 'na' && nameB !== 'n/a') {
+          const pairKey = [nameA, nameB].sort().join('|');
+          const key = `${d.anniversary_month}-${d.anniversary_day}|${pairKey}`;
+          const existingIdx = coupleMap.get(key);
+          if (existingIdx !== undefined) {
+            const existing = deduped[existingIdx];
+            // Prefer keeping photo_url if existing didn't have one
+            if (!existing.photo_url && d.photo_url) {
+              deduped[existingIdx] = { ...d, partner_devotee: existing };
+            } else {
+              deduped[existingIdx] = { ...existing, partner_devotee: d };
+            }
+            continue;
+          }
+          coupleMap.set(key, deduped.length);
+        }
+        deduped.push(d);
+      }
+
+      deduped.sort(
+        (a, b) =>
+          (a.days_until_anniversary ?? 9999) -
+          (b.days_until_anniversary ?? 9999)
+      );
+      setAllDevotees(deduped);
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load anniversary records');
