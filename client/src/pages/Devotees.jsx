@@ -29,6 +29,7 @@ export default function Devotees({ user, t }) {
   const [sort, setSort] = useState('upcoming_birthday');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(60);
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
 
@@ -46,6 +47,7 @@ export default function Devotees({ user, t }) {
   };
 
   useEffect(() => {
+    setVisibleCount(60);
     const timer = setTimeout(loadDevotees, 150);
     return () => clearTimeout(timer);
   }, [search, month, status, sort]);
@@ -210,7 +212,7 @@ export default function Devotees({ user, t }) {
                   </td>
                 </tr>
               ) : (
-                devotees.map((d) => (
+                devotees.slice(0, visibleCount).map((d) => (
                   <tr key={d.id} className="hover:bg-slate-50/70">
                     <td className="px-5 py-4">
                       <span className="inline-flex rounded-lg bg-indigo-50 px-2.5 py-1 font-mono text-xs font-bold text-indigo-700 ring-1 ring-indigo-200/80">
@@ -223,6 +225,7 @@ export default function Devotees({ user, t }) {
                           <img
                             src={d.photo_url}
                             alt={d.full_name}
+                            loading="lazy"
                             className="h-10 w-9 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
                           />
                         ) : (
@@ -317,6 +320,24 @@ export default function Devotees({ user, t }) {
             </tbody>
           </table>
         </div>
+        {devotees.length > visibleCount && (
+          <div className="flex items-center justify-center gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((prev) => prev + 60)}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Show 60 More ({devotees.length - visibleCount} remaining)
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisibleCount(devotees.length)}
+              className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+            >
+              Show All ({devotees.length})
+            </button>
+          </div>
+        )}
       </div>
 
       <DevoteeModal

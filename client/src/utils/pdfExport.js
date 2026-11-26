@@ -1,6 +1,3 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
 const INDIGO = [79, 70, 229];
 const SLATE_900 = [15, 23, 42];
 const SLATE_500 = [100, 116, 139];
@@ -19,7 +16,11 @@ function buildSubtitle(subtitle, count) {
   return `ISKCON Durgapur · ${count} devotee${count === 1 ? '' : 's'} · Generated ${new Date().toLocaleString()}`;
 }
 
-export function exportDevoteesPdf(devotees, { title = 'Devotee Directory', subtitle = '' } = {}) {
+export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory', subtitle = '' } = {}) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

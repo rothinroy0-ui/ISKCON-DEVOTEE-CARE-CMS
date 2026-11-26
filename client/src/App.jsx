@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { apiRequest, getToken, setToken } from './api';
 import { translations } from './i18n';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import RegisterDevotee from './pages/RegisterDevotee';
-import Devotees from './pages/Devotees';
-import Birthdays from './pages/Birthdays';
-import Users from './pages/Users';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const RegisterDevotee = lazy(() => import('./pages/RegisterDevotee'));
+const Devotees = lazy(() => import('./pages/Devotees'));
+const Birthdays = lazy(() => import('./pages/Birthdays'));
+const Users = lazy(() => import('./pages/Users'));
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -60,17 +61,25 @@ export default function App() {
         onLogout={handleLogout}
         t={t}
       >
-        {activePage === 'dashboard' && (
-          <Dashboard user={user} t={t} onNavigate={setActivePage} />
-        )}
-        {activePage === 'register' && (user.role === 'admin' || user.role === 'editor') && (
-          <RegisterDevotee t={t} onNavigate={setActivePage} />
-        )}
-        {activePage === 'devotees' && <Devotees user={user} t={t} />}
-        {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
-        {activePage === 'users' && user.role === 'admin' && (
-          <Users currentUser={user} t={t} />
-        )}
+        <Suspense
+          fallback={
+            <div className="py-12 text-center text-sm text-slate-500">
+              Loading page...
+            </div>
+          }
+        >
+          {activePage === 'dashboard' && (
+            <Dashboard user={user} t={t} onNavigate={setActivePage} />
+          )}
+          {activePage === 'register' && (user.role === 'admin' || user.role === 'editor') && (
+            <RegisterDevotee t={t} onNavigate={setActivePage} />
+          )}
+          {activePage === 'devotees' && <Devotees user={user} t={t} />}
+          {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
+          {activePage === 'users' && user.role === 'admin' && (
+            <Users currentUser={user} t={t} />
+          )}
+        </Suspense>
       </Layout>
     </ToastProvider>
   );

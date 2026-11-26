@@ -31,8 +31,9 @@ function enrichDevotee(row, wishedMap, refDate) {
   const phoneStr = row.contact_no ? String(row.contact_no) : '';
   const whatsappStr = row.whatsapp_no ? String(row.whatsapp_no) : '';
   const wishRow = wishedMap.get(String(row.id));
+  const { upload_your_passport_size_photo, ...rest } = row;
   return {
-    ...row,
+    ...rest,
     id: row.id,
     devotee_id: row.devotee_id || `ISKCON_DGP_${String(row.id).padStart(3, '0')}`,
     phone: phoneStr,
@@ -41,7 +42,7 @@ function enrichDevotee(row, wishedMap, refDate) {
     city: row.town_city || '',
     address: row.full_address || '',
     spiritual_name: row.initiated_name || '',
-    photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
+    photo_url: normalizePhotoUrl(upload_your_passport_size_photo),
     dob_iso: formatDobToIso(row.dob),
     status: 'active',
     ...bday,

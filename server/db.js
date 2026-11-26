@@ -18,6 +18,9 @@ function createPool() {
   return new Pool({
     connectionString,
     ssl: useSsl ? { rejectUnauthorized: false } : false,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   });
 }
 
@@ -83,6 +86,8 @@ async function initDb() {
 
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS devotee_id TEXT;
     ALTER TABLE devotee_birthday_wishes ADD COLUMN IF NOT EXISTS gift_status TEXT NOT NULL DEFAULT 'none';
+    CREATE INDEX IF NOT EXISTS idx_wishes_year ON devotee_birthday_wishes(wish_year);
+    CREATE INDEX IF NOT EXISTS idx_devotee_data_devotee_id ON devotee_data(devotee_id);
   `);
 
   await pool.query(`

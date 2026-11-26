@@ -16,9 +16,6 @@ import {
   ChevronDown,
   X,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 
@@ -40,6 +37,7 @@ export default function Birthdays({ user, t }) {
   const [citySearch, setCitySearch] = useState('');
   const cityDropdownRef = useRef(null);
   const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(60);
   const [loading, setLoading] = useState(true);
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
@@ -142,6 +140,10 @@ export default function Birthdays({ user, t }) {
     return list;
   }, [allDevotees, selectedMonth, exactDate, selectedCities, search]);
 
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [selectedMonth, exactDate, selectedCities, search]);
+
   const todayAndTomorrowCount = useMemo(
     () =>
       allDevotees.filter(
@@ -228,7 +230,8 @@ export default function Birthdays({ user, t }) {
     ? `${activeMonthObj.name} Birthdays`
     : 'All Birthdays';
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
     const label = activeMonthObj?.name || 'All_Months';
     const rows = filteredDevotees.map((d) => ({
       'Devotee ID': d.devotee_id || '',
@@ -251,7 +254,11 @@ export default function Birthdays({ user, t }) {
     XLSX.writeFile(wb, `ISKCON_Durgapur_${label}_Birthdays.xlsx`);
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
+    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ]);
     const label = activeMonthObj?.name || 'All_Months';
     const doc = new jsPDF({ orientation: 'landscape' });
 
@@ -622,7 +629,7 @@ export default function Birthdays({ user, t }) {
             </div>
           ) : (
             <div className="max-h-[650px] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200/80">
-              {filteredDevotees.map((d) => (
+              {filteredDevotees.slice(0, visibleCount).map((d) => (
                 <div
                   key={d.id}
                   className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
@@ -632,6 +639,7 @@ export default function Birthdays({ user, t }) {
                       <img
                         src={d.photo_url}
                         alt={d.full_name}
+                        loading="lazy"
                         className="h-10 w-9 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
                       />
                     ) : (
@@ -711,6 +719,24 @@ export default function Birthdays({ user, t }) {
                   )}
                 </div>
               ))}
+              {filteredDevotees.length > visibleCount && (
+                <div className="flex items-center justify-center gap-3 bg-slate-50/80 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 60)}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Show 60 More ({filteredDevotees.length - visibleCount} remaining)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount(filteredDevotees.length)}
+                    className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                  >
+                    Show All ({filteredDevotees.length})
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

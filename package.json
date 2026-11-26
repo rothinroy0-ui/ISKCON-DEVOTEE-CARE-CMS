@@ -9,6 +9,7 @@
     "build": "npm --prefix client run build"
   },
   "dependencies": {
+    "@vercel/speed-insights": "^2.1.1",
     "dotenv": "^18.0.10",
     "express": "^4.21.2",
     "pg": "^8.23.1"
