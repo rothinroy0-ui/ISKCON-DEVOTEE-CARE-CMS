@@ -3,6 +3,7 @@ import { apiRequest, getToken, setToken } from './api';
 import { translations } from './i18n';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
+import { ImagePreviewProvider } from './components/ImagePreviewModal';
 import Login from './pages/Login';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -54,31 +55,33 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <Layout
-        user={user}
-        activePage={activePage}
-        onNavigate={setActivePage}
-        onLogout={handleLogout}
-        t={t}
-      >
-        <Suspense
-          fallback={
-            <div className="py-12 text-center text-sm text-slate-500">
-              Loading page...
-            </div>
-          }
+      <ImagePreviewProvider>
+        <Layout
+          user={user}
+          activePage={activePage}
+          onNavigate={setActivePage}
+          onLogout={handleLogout}
+          t={t}
         >
-          {activePage === 'dashboard' && (
-            <Dashboard user={user} t={t} onNavigate={setActivePage} />
-          )}
-          {activePage === 'devotees' && <Devotees user={user} t={t} />}
-          {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
-          {activePage === 'parcels' && <Parcels user={user} />}
-          {activePage === 'users' && user.role === 'admin' && (
-            <Users currentUser={user} t={t} />
-          )}
-        </Suspense>
-      </Layout>
+          <Suspense
+            fallback={
+              <div className="py-12 text-center text-sm text-slate-500">
+                Loading page...
+              </div>
+            }
+          >
+            {activePage === 'dashboard' && (
+              <Dashboard user={user} t={t} onNavigate={setActivePage} />
+            )}
+            {activePage === 'devotees' && <Devotees user={user} t={t} />}
+            {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
+            {activePage === 'parcels' && <Parcels user={user} />}
+            {activePage === 'users' && user.role === 'admin' && (
+              <Users currentUser={user} t={t} />
+            )}
+          </Suspense>
+        </Layout>
+      </ImagePreviewProvider>
     </ToastProvider>
   );
 }

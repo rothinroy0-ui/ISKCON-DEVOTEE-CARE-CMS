@@ -12,6 +12,7 @@ import {
 import { apiRequest, getToken } from '../api';
 import DevoteeModal from '../components/DevoteeModal';
 import { useToast } from '../components/Toast';
+import { useImagePreview } from '../components/ImagePreviewModal';
 import { exportDevoteesPdf } from '../utils/pdfExport';
 
 const MONTHS = [
@@ -21,6 +22,7 @@ const MONTHS = [
 
 export default function Devotees({ user, t }) {
   const toast = useToast();
+  const { openImage } = useImagePreview();
   const [devotees, setDevotees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -226,7 +228,11 @@ export default function Devotees({ user, t }) {
                             src={d.photo_url}
                             alt={d.full_name}
                             loading="lazy"
-                            className="h-10 w-9 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                            onClick={() =>
+                              openImage(d.photo_url, d.full_name, d.devotee_id)
+                            }
+                            title="Click to enlarge photo"
+                            className="h-10 w-9 shrink-0 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200 transition hover:ring-2 hover:ring-indigo-400"
                           />
                         ) : (
                           <div className="flex h-10 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500">

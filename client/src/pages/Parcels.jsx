@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
+import { useImagePreview } from '../components/ImagePreviewModal';
 
 const GIFT_OPTIONS = [
   { value: 'none', label: 'No Gift' },
@@ -38,6 +39,7 @@ const MONTHS = [
 
 export default function Parcels({ user }) {
   const toast = useToast();
+  const { openImage } = useImagePreview();
   const [allDevotees, setAllDevotees] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -563,7 +565,11 @@ export default function Parcels({ user }) {
                       src={d.photo_url}
                       alt={d.full_name}
                       loading="lazy"
-                      className="h-10 w-9 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                      onClick={() =>
+                        openImage(d.photo_url, d.full_name, d.devotee_id)
+                      }
+                      title="Click to enlarge photo"
+                      className="h-10 w-9 shrink-0 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200 transition hover:ring-2 hover:ring-indigo-400"
                     />
                   ) : (
                     <span className="flex h-10 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-xs font-bold text-indigo-600">

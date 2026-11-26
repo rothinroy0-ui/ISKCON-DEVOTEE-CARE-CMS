@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Camera, Trash2 } from 'lucide-react';
+import { useImagePreview } from './ImagePreviewModal';
 
 const EMPTY_FORM = {
   devotee_id: '',
@@ -54,6 +55,7 @@ function resizePhotoToDataUrl(file) {
 }
 
 export default function DevoteeModal({ isOpen, onClose, onSave, devotee, t }) {
+  const { openImage } = useImagePreview();
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -144,7 +146,11 @@ export default function DevoteeModal({ isOpen, onClose, onSave, devotee, t }) {
                 <img
                   src={form.photo_url}
                   alt="Photo"
-                  className="h-20 w-16 rounded-lg object-cover ring-1 ring-slate-300"
+                  onClick={() =>
+                    openImage(form.photo_url, form.full_name, form.devotee_id)
+                  }
+                  title="Click to enlarge photo"
+                  className="h-20 w-16 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-300 transition hover:ring-2 hover:ring-indigo-400"
                 />
                 <button
                   type="button"
