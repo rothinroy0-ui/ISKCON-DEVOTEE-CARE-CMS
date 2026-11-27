@@ -376,10 +376,18 @@ export default function Applications({ user, t }) {
                         {a.status}
                       </span>
                     </td>
-                    {canApprove && (
-                      <td className="px-4 py-3.5 text-right">
-                        {a.status === 'pending' ? (
-                          <div className="flex justify-end gap-2">
+                    <td className="px-4 py-3.5 text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setReviewApp(a)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Review
+                        </button>
+                        {canApprove && a.status === 'pending' && (
+                          <>
                             <button
                               type="button"
                               onClick={() => handleApprove(a)}
@@ -396,16 +404,10 @@ export default function Applications({ user, t }) {
                               <XCircle className="h-3.5 w-3.5" />
                               Reject
                             </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400">
-                            {a.reviewed_by_name
-                              ? `by ${a.reviewed_by_name}`
-                              : 'Reviewed'}
-                          </span>
+                          </>
                         )}
-                      </td>
-                    )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -420,6 +422,32 @@ export default function Applications({ user, t }) {
         onSave={handleSubmitApplication}
         devotee={null}
         t={t}
+      />
+
+      <ApplicationReviewModal
+        application={reviewApp}
+        isOpen={Boolean(reviewApp)}
+        onClose={() => setReviewApp(null)}
+        canApprove={canApprove}
+        busy={actionBusy}
+        onApprove={async (appRow) => {
+          setActionBusy(true);
+          try {
+            await handleApprove(appRow);
+            setReviewApp(null);
+          } finally {
+            setActionBusy(false);
+          }
+        }}
+        onReject={async (appRow) => {
+          setActionBusy(true);
+          try {
+            await handleReject(appRow);
+            setReviewApp(null);
+          } finally {
+            setActionBusy(false);
+          }
+        }}
       />
     </div>
   );
