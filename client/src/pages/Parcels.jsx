@@ -20,7 +20,7 @@ import { hasPermission } from '../utils/permissions';
 
 const GIFT_OPTIONS = [
   { value: 'none', label: 'No Gift' },
-  { value: 'packed', label: 'Gifts Packed' },
+  { value: 'packed', label: 'Dispatched' },
   { value: 'in_transit', label: 'In Transit' },
   { value: 'delivered', label: 'Delivered' },
 ];
@@ -304,7 +304,7 @@ export default function Parcels({ user }) {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-amber-700">
-              Gifts Packed
+              Dispatched
             </span>
             <Package className="h-4 w-4 text-amber-600" />
           </div>
@@ -524,7 +524,7 @@ export default function Parcels({ user }) {
                 Parcel &amp; Gift Tracking ({filteredDevotees.length})
               </h3>
               <p className="text-xs text-slate-500">
-                Manage packed gifts, in-transit parcels, and deliveries
+                Manage dispatched, in-transit, and delivered parcels
               </p>
             </div>
           </div>

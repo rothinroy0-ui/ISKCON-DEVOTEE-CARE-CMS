@@ -207,11 +207,11 @@ export default function Birthdays({ user, t }) {
     const isActive = d.gift_status && d.gift_status !== 'none';
     const nextStatus = isActive ? 'none' : 'packed';
     const ok = await confirm({
-      title: isActive ? 'Clear Parcel Status?' : 'Mark Parcel as Packed?',
+      title: isActive ? 'Clear Parcel Status?' : 'Mark Parcel as Dispatched?',
       message: isActive
         ? `Are you sure you want to clear the parcel status for "${d.full_name}" (set to No Gift)?`
-        : `Are you sure you want to mark "${d.full_name}" as Gifts Packed?`,
-      confirmText: isActive ? 'Yes, Clear' : 'Yes, Mark Packed',
+        : `Are you sure you want to mark "${d.full_name}" as Dispatched?`,
+      confirmText: isActive ? 'Yes, Clear' : 'Yes, Mark Dispatched',
       variant: 'warning',
     });
     if (!ok) return;
@@ -227,7 +227,7 @@ export default function Birthdays({ user, t }) {
       );
       toast.success(
         nextStatus === 'packed'
-          ? `Parcel added for ${d.full_name} (Gifts Packed)!`
+          ? `Parcel added for ${d.full_name} (Dispatched)!`
           : `Parcel cleared for ${d.full_name}.`
       );
     } catch (err) {
@@ -690,7 +690,7 @@ export default function Birthdays({ user, t }) {
                       >
                         <Package className="h-3.5 w-3.5" />
                         {d.gift_status === 'packed'
-                          ? 'Packed'
+                          ? 'Dispatched'
                           : d.gift_status === 'in_transit'
                           ? 'In Transit'
                           : d.gift_status === 'delivered'

@@ -621,14 +621,14 @@ export default function Insights() {
               type="button"
               onClick={() =>
                 openCategoryDrilldown(
-                  'Gifts Packed',
+                  'Dispatched',
                   (d) => d.gift_status === 'packed'
                 )
               }
               className="rounded-xl bg-amber-50 p-3 text-left transition hover:ring-2 hover:ring-amber-300"
             >
               <div className="text-[11px] font-semibold text-amber-700">
-                Packed
+                Dispatched
               </div>
               <div className="mt-1 text-lg font-bold text-amber-800">
                 {data.giftsAndWishes?.packed || 0}

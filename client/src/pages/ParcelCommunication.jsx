@@ -58,7 +58,7 @@ const PARCEL_TEMPLATES = [
 
 const GIFT_STATUS_LABELS = {
   none: { label: 'No Gift', cls: 'bg-slate-100 text-slate-600' },
-  packed: { label: 'Gifts Packed', cls: 'bg-indigo-100 text-indigo-700' },
+  packed: { label: 'Dispatched', cls: 'bg-indigo-100 text-indigo-700' },
   in_transit: { label: 'In Transit', cls: 'bg-amber-100 text-amber-700' },
   delivered: { label: 'Delivered', cls: 'bg-emerald-100 text-emerald-700' },
 };
@@ -390,7 +390,7 @@ export default function ParcelCommunication() {
         <div className="flex flex-wrap items-center gap-2">
           {[
             { value: 'all', label: 'All Devotees' },
-            { value: 'packed', label: 'Gifts Packed' },
+            { value: 'packed', label: 'Dispatched' },
             { value: 'in_transit', label: 'In Transit' },
             { value: 'delivered', label: 'Delivered' },
             { value: 'none', label: 'No Gift' },
