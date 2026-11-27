@@ -3,9 +3,9 @@ import { X, Camera, Trash2 } from 'lucide-react';
 import { useImagePreview } from './ImagePreviewModal';
 
 const SPIRITUAL_MASTERS = [
-  'HH JAYAPATAKA SWAMI GURUMAHARAJ',
-  'HH BHAKTI CHARU SWAMI GURUMAHARAJ',
-  'HH SUBHAG SWAMI GURUMAHARAJ',
+  'H.H. JAYAPATAKA SWAMI GURUMAHARAJ',
+  'H.H. BHAKTI CHARU SWAMI GURUMAHARAJ',
+  'H.H. SUBHAG SWAMI GURUMAHARAJ',
 ];
 
 const EMPTY_FORM = {
