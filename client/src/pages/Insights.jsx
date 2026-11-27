@@ -758,12 +758,12 @@ export default function Insights() {
                   {filteredModalList.length} devotees
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
                   disabled={filteredModalList.length === 0}
                   onClick={handleExportDrilldownPdf}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-40"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   Export PDF
