@@ -619,6 +619,61 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
         return res.status(400).json({ error: 'Please provide a valid date of birth' });
       }
 
+      if (!req.body.allowDuplicate) {
+        const cleanName = String(full_name).trim().replace(/\s+/g, ' ').toLowerCase();
+        const cleanDob = String(dob).trim();
+        const p10 = String(contactBigint).slice(-10);
+        const waBigint = parsePhoneBigint(whatsapp_no);
+        const wa10 = waBigint ? String(waBigint).slice(-10) : '';
+
+        const [devCheck, appCheck] = await Promise.all([
+          db.query(
+            `SELECT id, devotee_id, full_name, contact_no, whatsapp_no, dob
+             FROM devotee_data WHERE deleted_at IS NULL`
+          ),
+          db.query(
+            `SELECT id, full_name, contact_no, whatsapp_no, dob
+             FROM devotee_applications WHERE status = 'pending'`
+          ),
+        ]);
+
+        const matchDev = devCheck.rows.find((d) => {
+          const dp = String(d.contact_no || '').replace(/\D/g, '').slice(-10);
+          const dwa = String(d.whatsapp_no || '').replace(/\D/g, '').slice(-10);
+          const dn = String(d.full_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+          const dd = String(d.dob || '').trim();
+          const phoneHit =
+            (p10 && (p10 === dp || p10 === dwa)) ||
+            (wa10 && (wa10 === dp || wa10 === dwa));
+          const nameDobHit = cleanName === dn && cleanDob === dd;
+          return phoneHit || nameDobHit;
+        });
+
+        if (matchDev) {
+          return res.status(409).json({
+            error: `Duplicate entry avoided: "${matchDev.full_name}" (${matchDev.devotee_id || `#${matchDev.id}`}) already exists in the Devotees database.`,
+          });
+        }
+
+        const matchApp = appCheck.rows.find((a) => {
+          const ap = String(a.contact_no || '').replace(/\D/g, '').slice(-10);
+          const awa = String(a.whatsapp_no || '').replace(/\D/g, '').slice(-10);
+          const an = String(a.full_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+          const ad = String(a.dob || '').trim();
+          const phoneHit =
+            (p10 && (p10 === ap || p10 === awa)) ||
+            (wa10 && (wa10 === ap || wa10 === awa));
+          const nameDobHit = cleanName === an && cleanDob === ad;
+          return phoneHit || nameDobHit;
+        });
+
+        if (matchApp) {
+          return res.status(409).json({
+            error: `Duplicate entry avoided: A pending application for "${matchApp.full_name}" (APP-${matchApp.id}) already exists.`,
+          });
+        }
+      }
+
       const finalDevoteeId = devotee_id
         ? String(devotee_id).trim().toUpperCase()
         : await generateNextId();
@@ -931,16 +986,100 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
 
   router.get('/applications/list', requirePermission('applications', 'devotees_edit'), async (req, res, next) => {
     try {
-      const result = await db.query(
-        'SELECT * FROM devotee_applications ORDER BY created_at DESC'
-      );
-      const applications = result.rows.map((row) => ({
-        ...row,
-        contact_no: row.contact_no ? String(row.contact_no) : '',
-        phone: row.contact_no ? String(row.contact_no) : '',
-        whatsapp_no: row.whatsapp_no ? String(row.whatsapp_no) : '',
-        photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
-      }));
+      const [result, devoteesRes] = await Promise.all([
+        db.query('SELECT * FROM devotee_applications ORDER BY created_at DESC'),
+        db.query(
+          'SELECT id, devotee_id, full_name, contact_no, whatsapp_no, dob FROM devotee_data WHERE deleted_at IS NULL'
+        ),
+      ]);
+
+      const norm10 = (v) => {
+        const d = String(v || '').replace(/\D/g, '');
+        return d.length >= 10 ? d.slice(-10) : '';
+      };
+      const normName = (v) =>
+        String(v || '')
+          .trim()
+          .replace(/\s+/g, ' ')
+          .toLowerCase();
+
+      const rawApps = result.rows;
+      const existingDevotees = devoteesRes.rows;
+
+      const applications = rawApps.map((row) => {
+        const appName = normName(row.full_name);
+        const appPhone = norm10(row.contact_no);
+        const appWa = norm10(row.whatsapp_no);
+        const appDob = String(row.dob || '').trim();
+        const duplicate_matches = [];
+
+        for (const d of existingDevotees) {
+          // Skip the devotee record created from this approved application itself
+          if (
+            row.status === 'approved' &&
+            row.devotee_id &&
+            d.devotee_id === row.devotee_id
+          ) {
+            continue;
+          }
+          const dPhone = norm10(d.contact_no);
+          const dWa = norm10(d.whatsapp_no);
+          const dName = normName(d.full_name);
+          const dDob = String(d.dob || '').trim();
+
+          const phoneMatch =
+            (appPhone && (appPhone === dPhone || appPhone === dWa)) ||
+            (appWa && (appWa === dPhone || appWa === dWa));
+          const nameMatch = appName && dName && appName === dName;
+          const dobMatch = appDob && dDob && appDob === dDob;
+
+          if (phoneMatch || nameMatch) {
+            const reasons = [];
+            if (phoneMatch) reasons.push('Phone/WhatsApp');
+            if (nameMatch && dobMatch) reasons.push('Name & DOB');
+            else if (nameMatch) reasons.push('Full Name');
+            duplicate_matches.push({
+              source: 'Devotee Database',
+              id: d.devotee_id || `#${d.id}`,
+              name: d.full_name,
+              reason: reasons.join(' + '),
+            });
+          }
+        }
+
+        for (const other of rawApps) {
+          if (other.id === row.id || other.status === 'rejected') continue;
+          const oPhone = norm10(other.contact_no);
+          const oWa = norm10(other.whatsapp_no);
+          const oName = normName(other.full_name);
+          const oDob = String(other.dob || '').trim();
+
+          const phoneMatch =
+            (appPhone && (appPhone === oPhone || appPhone === oWa)) ||
+            (appWa && (appWa === oPhone || appWa === oWa));
+          const nameDobMatch =
+            appName && oName && appName === oName && appDob && oDob && appDob === oDob;
+
+          if (phoneMatch || nameDobMatch) {
+            duplicate_matches.push({
+              source: `Application (${other.status})`,
+              id: `APP-${other.id}`,
+              name: other.full_name,
+              reason: phoneMatch ? 'Phone/WhatsApp' : 'Name & DOB',
+            });
+          }
+        }
+
+        return {
+          ...row,
+          contact_no: row.contact_no ? String(row.contact_no) : '',
+          phone: row.contact_no ? String(row.contact_no) : '',
+          whatsapp_no: row.whatsapp_no ? String(row.whatsapp_no) : '',
+          photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
+          duplicate_matches,
+        };
+      });
+
       res.json({ applications });
     } catch (err) {
       next(err);
@@ -981,6 +1120,61 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
       }
       if (!parseDob(dob)) {
         return res.status(400).json({ error: 'Please provide a valid date of birth' });
+      }
+
+      if (!req.body.allowDuplicate) {
+        const cleanName = String(full_name).trim().replace(/\s+/g, ' ').toLowerCase();
+        const cleanDob = String(dob).trim();
+        const p10 = String(contactBigint).slice(-10);
+        const waBigint = parsePhoneBigint(whatsapp_no);
+        const wa10 = waBigint ? String(waBigint).slice(-10) : '';
+
+        const [devCheck, appCheck] = await Promise.all([
+          db.query(
+            `SELECT id, devotee_id, full_name, contact_no, whatsapp_no, dob
+             FROM devotee_data WHERE deleted_at IS NULL`
+          ),
+          db.query(
+            `SELECT id, full_name, contact_no, whatsapp_no, dob
+             FROM devotee_applications WHERE status = 'pending'`
+          ),
+        ]);
+
+        const matchDev = devCheck.rows.find((d) => {
+          const dp = String(d.contact_no || '').replace(/\D/g, '').slice(-10);
+          const dwa = String(d.whatsapp_no || '').replace(/\D/g, '').slice(-10);
+          const dn = String(d.full_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+          const dd = String(d.dob || '').trim();
+          const phoneHit =
+            (p10 && (p10 === dp || p10 === dwa)) ||
+            (wa10 && (wa10 === dp || wa10 === dwa));
+          const nameDobHit = cleanName === dn && cleanDob === dd;
+          return phoneHit || nameDobHit;
+        });
+
+        if (matchDev) {
+          return res.status(409).json({
+            error: `Duplicate entry avoided: "${matchDev.full_name}" (${matchDev.devotee_id || `#${matchDev.id}`}) already exists in the Devotees database.`,
+          });
+        }
+
+        const matchApp = appCheck.rows.find((a) => {
+          const ap = String(a.contact_no || '').replace(/\D/g, '').slice(-10);
+          const awa = String(a.whatsapp_no || '').replace(/\D/g, '').slice(-10);
+          const an = String(a.full_name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+          const ad = String(a.dob || '').trim();
+          const phoneHit =
+            (p10 && (p10 === ap || p10 === awa)) ||
+            (wa10 && (wa10 === ap || wa10 === awa));
+          const nameDobHit = cleanName === an && cleanDob === ad;
+          return phoneHit || nameDobHit;
+        });
+
+        if (matchApp) {
+          return res.status(409).json({
+            error: `Duplicate entry avoided: A pending application for "${matchApp.full_name}" (APP-${matchApp.id}) already exists.`,
+          });
+        }
       }
 
       const inserted = await db.query(

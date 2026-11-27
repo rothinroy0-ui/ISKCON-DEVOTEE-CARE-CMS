@@ -8,6 +8,7 @@ import {
   MapPin,
   Calendar,
   User,
+  AlertTriangle,
 } from 'lucide-react';
 import { useImagePreview } from './ImagePreviewModal';
 
@@ -110,6 +111,27 @@ export default function ApplicationReviewModal({
         </div>
 
         <div className="space-y-6 p-6">
+          {/* Duplicate Detector Alert */}
+          {a.duplicate_matches?.length > 0 && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-rose-800">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  Duplicate Detector Alert ({a.duplicate_matches.length} match
+                  {a.duplicate_matches.length > 1 ? 'es' : ''} found)
+                </span>
+              </div>
+              <ul className="mt-2 space-y-1 text-xs text-rose-700">
+                {a.duplicate_matches.map((m, i) => (
+                  <li key={`${m.id}-${i}`}>
+                    • <strong>{m.name}</strong> ({m.id}) — {m.source} · Matched on{' '}
+                    <strong>{m.reason}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Identity */}
           <div className="flex flex-wrap items-start gap-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200/70">
             {photo ? (

@@ -9,6 +9,7 @@ import {
   Plus,
   Eye,
   MessageCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
@@ -17,6 +18,19 @@ import { useImagePreview } from '../components/ImagePreviewModal';
 import DevoteeModal from '../components/DevoteeModal';
 import ApplicationReviewModal from '../components/ApplicationReviewModal';
 import { hasPermission } from '../utils/permissions';
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export default function Applications({ user, t }) {
   const toast = useToast();
@@ -355,23 +369,41 @@ export default function Applications({ user, t }) {
                           </span>
                         )}
                         <div>
-                          <div className="font-semibold text-slate-900">
-                            {a.full_name}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-slate-900">
+                              {a.full_name}
+                            </span>
+                            {a.duplicate_matches?.length > 0 && (
+                              <span
+                                title={a.duplicate_matches
+                                  .map((m) => `${m.name} (${m.id}) — ${m.reason}`)
+                                  .join('\n')}
+                                className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200"
+                              >
+                                <AlertTriangle className="h-3 w-3" />
+                                Duplicate ({a.duplicate_matches[0].id})
+                              </span>
+                            )}
                           </div>
                           {a.initiated_name && (
                             <div className="text-xs text-indigo-600">
                               {a.initiated_name}
                             </div>
                           )}
-                          <div className="text-[11px] text-slate-400">
-                            Submitted{' '}
-                            {a.created_at
-                              ? new Date(a.created_at).toLocaleDateString()
-                              : ''}
+                          <div className="mt-0.5 text-[11px] text-slate-500">
+                            Submitted: {formatDateTime(a.created_at)}
                             {a.submitted_by_name
-                              ? ` by ${a.submitted_by_name}`
+                              ? ` · by ${a.submitted_by_name}`
                               : ''}
                           </div>
+                          {a.reviewed_at && (
+                            <div className="text-[11px] text-slate-400">
+                              Reviewed: {formatDateTime(a.reviewed_at)}
+                              {a.reviewed_by_name
+                                ? ` · by ${a.reviewed_by_name}`
+                                : ''}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
