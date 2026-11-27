@@ -14,6 +14,58 @@ function normalizePhotoUrl(raw) {
   return s;
 }
 
+function formatWhatsAppNumber(raw) {
+  if (!raw) return '';
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 10) digits = `91${digits}`;
+  return digits;
+}
+
+async function sendWhatsAppNotification(rawPhone, message) {
+  const phone = formatWhatsAppNumber(rawPhone);
+  if (!phone) return null;
+  const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  let autoSent = false;
+
+  if (process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    try {
+      const resp = await fetch(
+        `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: phone,
+            type: 'text',
+            text: { body: message },
+          }),
+        }
+      );
+      if (resp.ok) autoSent = true;
+    } catch {
+      // Non-fatal fallback to waUrl
+    }
+  } else if (process.env.WHATSAPP_WEBHOOK_URL) {
+    try {
+      const resp = await fetch(process.env.WHATSAPP_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message }),
+      });
+      if (resp.ok) autoSent = true;
+    } catch {
+      // Non-fatal fallback to waUrl
+    }
+  }
+
+  return { phone, message, waUrl, autoSent };
+}
+
 function parsePhoneBigint(val) {
   if (val === undefined || val === null || val === '') return null;
   const digits = String(val).replace(/\D/g, '');
@@ -1070,7 +1122,17 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
         `Approved application #${appId} for ${appRow.full_name} (${finalDevoteeId})`
       );
 
-      res.json({ ok: true, devotee: inserted.rows[0] });
+      const waMsg = `Hare Krishna ${appRow.full_name}! Your application has been approved at ISKCON Durgapur (RADHAPUR Devotee Care). Your Devotee ID is ${finalDevoteeId}.`;
+      const whatsappNotification = await sendWhatsAppNotification(
+        appRow.whatsapp_no || appRow.contact_no,
+        waMsg
+      );
+
+      res.json({
+        ok: true,
+        devotee: inserted.rows[0],
+        whatsappNotification,
+      });
     } catch (err) {
       next(err);
     }
@@ -1080,12 +1142,13 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
     try {
       const appId = Number(req.params.id);
       const appRes = await db.query(
-        'SELECT id, full_name, status FROM devotee_applications WHERE id = $1',
+        'SELECT id, full_name, contact_no, whatsapp_no, status FROM devotee_applications WHERE id = $1',
         [appId]
       );
       if (appRes.rows.length === 0) {
         return res.status(404).json({ error: 'Application not found' });
       }
+      const appRow = appRes.rows[0];
 
       await db.query(
         `UPDATE devotee_applications
@@ -1100,10 +1163,16 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
         'REJECT_APPLICATION',
         'devotee_applications',
         appId,
-        `Rejected application #${appId} for ${appRes.rows[0].full_name}`
+        `Rejected application #${appId} for ${appRow.full_name}`
       );
 
-      res.json({ ok: true });
+      const waMsg = `Hare Krishna ${appRow.full_name}, your registration application at ISKCON Durgapur (RADHAPUR Devotee Care) was not approved. Please contact the temple office for details.`;
+      const whatsappNotification = await sendWhatsAppNotification(
+        appRow.whatsapp_no || appRow.contact_no,
+        waMsg
+      );
+
+      res.json({ ok: true, whatsappNotification });
     } catch (err) {
       next(err);
     }

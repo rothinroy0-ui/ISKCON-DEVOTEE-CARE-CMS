@@ -8,6 +8,7 @@ import {
   Phone,
   Plus,
   Eye,
+  MessageCircle,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
@@ -90,6 +91,18 @@ export default function Applications({ user, t }) {
     await loadApplications();
   };
 
+  const buildWhatsAppUrl = (appRow) => {
+    const raw = String(appRow?.whatsapp || appRow?.phone || '').replace(/\D/g, '');
+    if (!raw || raw.length < 10) return null;
+    const digits = raw.length === 10 ? `91${raw}` : raw.startsWith('0') ? `91${raw.slice(1)}` : raw;
+    const name = appRow?.full_name || 'Devotee';
+    const message =
+      appRow?.status === 'rejected'
+        ? `Hare Krishna ${name}, Regarding your registration application with ISKCON Durgapur, it could not be approved at this time.`
+        : `Hare Krishna ${name}, Your application has been approved. Welcome to ISKCON Durgapur!`;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  };
+
   const handleApprove = async (appRow) => {
     const ok = await confirm({
       title: 'Approve Application?',
@@ -101,10 +114,18 @@ export default function Applications({ user, t }) {
 
     setActionBusy(true);
     try {
-      await apiRequest(`/api/devotees/applications/${appRow.id}/approve`, {
+      const res = await apiRequest(`/api/devotees/applications/${appRow.id}/approve`, {
         method: 'POST',
       });
-      toast.success(`${appRow.full_name} approved and added to main database!`);
+      const wa = res?.whatsappNotification;
+      if (wa?.autoSent) {
+        toast.success(`${appRow.full_name} approved! WhatsApp notification sent.`);
+      } else if (wa?.waUrl) {
+        toast.success(`${appRow.full_name} approved! Opening WhatsApp notification...`);
+        window.open(wa.waUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        toast.success(`${appRow.full_name} approved and added to main database!`);
+      }
       await loadApplications();
       return true;
     } catch (err) {
@@ -126,10 +147,18 @@ export default function Applications({ user, t }) {
 
     setActionBusy(true);
     try {
-      await apiRequest(`/api/devotees/applications/${appRow.id}/reject`, {
+      const res = await apiRequest(`/api/devotees/applications/${appRow.id}/reject`, {
         method: 'POST',
       });
-      toast.success(`Application for ${appRow.full_name} rejected.`);
+      const wa = res?.whatsappNotification;
+      if (wa?.autoSent) {
+        toast.success(`Application for ${appRow.full_name} rejected. WhatsApp notification sent.`);
+      } else if (wa?.waUrl) {
+        toast.success(`Application for ${appRow.full_name} rejected. Opening WhatsApp...`);
+        window.open(wa.waUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        toast.success(`Application for ${appRow.full_name} rejected.`);
+      }
       await loadApplications();
       return true;
     } catch (err) {
@@ -386,6 +415,17 @@ export default function Applications({ user, t }) {
                           <Eye className="h-3.5 w-3.5" />
                           Review
                         </button>
+                        {a.status !== 'pending' && buildWhatsAppUrl(a) && (
+                          <a
+                            href={buildWhatsAppUrl(a)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            WhatsApp
+                          </a>
+                        )}
                         {canApprove && a.status === 'pending' && (
                           <>
                             <button
