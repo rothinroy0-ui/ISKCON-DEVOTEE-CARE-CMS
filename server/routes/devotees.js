@@ -36,6 +36,7 @@ function enrichDevotee(row, wishedMap, refDate) {
   return {
     ...rest,
     id: row.id,
+    sl_no: row.sl_no ?? row.id,
     devotee_id: row.devotee_id || `ISKCON_DGP_${String(row.id).padStart(3, '0')}`,
     phone: phoneStr,
     contact_no: phoneStr,
@@ -271,22 +272,26 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
         return res.status(409).json({ error: `Devotee ID "${finalDevoteeId}" already exists` });
       }
 
+      const slRes = await db.query('SELECT COALESCE(MAX(sl_no), 0)::int + 1 AS next_sl FROM devotee_data');
+      const nextSlNo = slRes.rows[0]?.next_sl || 1;
+
       const inserted = await db.query(
         `INSERT INTO devotee_data (
-          devotee_id, full_name, fathers_name, spouses_name, dob, gender,
+          sl_no, devotee_id, full_name, fathers_name, spouses_name, dob, gender,
           contact_no, whatsapp_no, blood_group, town_city, full_address,
           teacher_name, spiritual_master, initiated_name,
           first_initiation_date, second_initiation_date, anniversary_date,
           upload_your_passport_size_photo
         ) VALUES (
-          $1, $2, $3, $4, $5, $6,
-          $7, $8, $9, $10, $11,
-          $12, $13, $14,
-          $15, $16, $17,
-          $18
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12,
+          $13, $14, $15,
+          $16, $17, $18,
+          $19
         )
         RETURNING *`,
         [
+          nextSlNo,
           finalDevoteeId,
           String(full_name).trim(),
           fathers_name ? String(fathers_name).trim() : null,

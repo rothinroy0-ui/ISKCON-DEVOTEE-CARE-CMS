@@ -39,8 +39,8 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
   // Table
   autoTable(doc, {
     startY: 88,
-    head: [['Devotee ID', 'Name (Initiated Name)', 'Mobile', 'Date of Birth', 'Address']],
-    body: devotees.map((d) => {
+    head: [['S.NO.', 'Devotee ID', 'Name (Initiated Name)', 'Mobile', 'Date of Birth', 'Address']],
+    body: devotees.map((d, idx) => {
       const initName = d.initiated_name || d.spiritual_name || '';
       const nameWithInit = initName
         ? `${d.full_name || ''} (${initName})`
@@ -52,6 +52,7 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
           ? `${addr}, ${city}`
           : addr || city || '—';
       return [
+        String(d.sl_no ?? idx + 1),
         d.devotee_id || `ISK-DGP-${String(d.id).padStart(4, '0')}`,
         nameWithInit,
         d.contact_no || d.phone || '',
@@ -77,9 +78,10 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
     },
     alternateRowStyles: { fillColor: SLATE_50 },
     columnStyles: {
-      0: { cellWidth: 95 },
-      2: { cellWidth: 85 },
-      3: { cellWidth: 80 },
+      0: { cellWidth: 38, halign: 'center' },
+      1: { cellWidth: 85 },
+      3: { cellWidth: 75 },
+      4: { cellWidth: 72 },
     },
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN, bottom: 52 },
   });

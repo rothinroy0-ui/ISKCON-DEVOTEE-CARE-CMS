@@ -88,6 +88,7 @@ export default function Users({ currentUser, t }) {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500">
               <tr>
+                <th className="px-4 py-3.5">SL NO</th>
                 <th className="px-5 py-3.5">{t.fullName}</th>
                 <th className="px-5 py-3.5">{t.username}</th>
                 <th className="px-5 py-3.5">{t.role}</th>
@@ -98,13 +99,16 @@ export default function Users({ currentUser, t }) {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-500">
+                  <td colSpan={6} className="px-5 py-10 text-center text-slate-500">
                     Loading...
                   </td>
                 </tr>
               ) : (
-                users.map((u) => (
+                users.map((u, idx) => (
                   <tr key={u.id} className="hover:bg-slate-50/70">
+                    <td className="px-4 py-4 font-mono text-xs font-semibold text-slate-500">
+                      {idx + 1}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-slate-900">{u.name}</div>
                       {u.email && <div className="text-xs text-slate-400">{u.email}</div>}

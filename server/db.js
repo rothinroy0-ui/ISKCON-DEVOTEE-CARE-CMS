@@ -85,6 +85,7 @@ async function initDb() {
     );
 
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS devotee_id TEXT;
+    ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS sl_no INTEGER;
     ALTER TABLE devotee_birthday_wishes ADD COLUMN IF NOT EXISTS gift_status TEXT NOT NULL DEFAULT 'none';
     CREATE INDEX IF NOT EXISTS idx_wishes_year ON devotee_birthday_wishes(wish_year);
     CREATE INDEX IF NOT EXISTS idx_devotee_data_devotee_id ON devotee_data(devotee_id);
@@ -94,6 +95,14 @@ async function initDb() {
     UPDATE devotee_data
     SET devotee_id = 'ISKCON_DGP_' || LPAD(id::text, 3, '0')
     WHERE devotee_id IS NULL OR devotee_id = '';
+
+    UPDATE devotee_data
+    SET sl_no = sub.rn
+    FROM (
+      SELECT id, ROW_NUMBER() OVER (ORDER BY id ASC) AS rn
+      FROM devotee_data
+    ) sub
+    WHERE devotee_data.id = sub.id AND devotee_data.sl_no IS NULL;
   `);
 
   const userRes = await pool.query('SELECT COUNT(*)::int AS count FROM users');

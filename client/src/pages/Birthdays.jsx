@@ -209,7 +209,8 @@ export default function Birthdays({ user, t }) {
   const handleExportExcel = async () => {
     const XLSX = await import('xlsx');
     const label = activeMonthObj?.name || 'All_Months';
-    const rows = filteredDevotees.map((d) => ({
+    const rows = filteredDevotees.map((d, idx) => ({
+      'SL NO': idx + 1,
       'Devotee ID': d.devotee_id || '',
       'Full Name': d.full_name || '',
       'Initiated Name': d.initiated_name || d.spiritual_name || '',
@@ -544,12 +545,15 @@ export default function Birthdays({ user, t }) {
             </div>
           ) : (
             <div className="max-h-[650px] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200/80">
-              {filteredDevotees.slice(0, visibleCount).map((d) => (
+              {filteredDevotees.slice(0, visibleCount).map((d, idx) => (
                 <div
                   key={d.id}
                   className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
                 >
                   <div className="flex items-center gap-3">
+                    <span className="w-7 shrink-0 text-center font-mono text-xs font-semibold text-slate-400">
+                      {idx + 1}
+                    </span>
                     {d.photo_url ? (
                       <img
                         src={d.photo_url}

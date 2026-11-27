@@ -191,7 +191,8 @@ export default function Parcels({ user }) {
 
   const handleExportExcel = async () => {
     const XLSX = await import('xlsx');
-    const rows = filteredDevotees.map((d) => ({
+    const rows = filteredDevotees.map((d, idx) => ({
+      'SL NO': idx + 1,
       'Devotee ID': d.devotee_id || '',
       'Full Name': d.full_name || '',
       'Initiated Name': d.initiated_name || d.spiritual_name || '',
@@ -231,6 +232,7 @@ export default function Parcels({ user }) {
       startY: 27,
       head: [
         [
+          'S.NO.',
           'Devotee ID',
           'Name (Initiated Name)',
           'Mobile',
@@ -238,7 +240,7 @@ export default function Parcels({ user }) {
           'Parcel Status',
         ],
       ],
-      body: filteredDevotees.map((d) => {
+      body: filteredDevotees.map((d, idx) => {
         const initName = d.initiated_name || d.spiritual_name || '';
         const nameWithInit = initName
           ? `${d.full_name || ''} (${initName})`
@@ -249,6 +251,7 @@ export default function Parcels({ user }) {
           ? `${addr}, ${city}`
           : addr || city;
         return [
+          String(idx + 1),
           d.devotee_id || '',
           nameWithInit,
           d.contact_no || d.phone || '',
@@ -561,12 +564,15 @@ export default function Parcels({ user }) {
           </div>
         ) : (
           <div className="max-h-[650px] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200/80">
-            {filteredDevotees.slice(0, visibleCount).map((d) => (
+            {filteredDevotees.slice(0, visibleCount).map((d, idx) => (
               <div
                 key={d.id}
                 className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
               >
                 <div className="flex items-center gap-3">
+                  <span className="w-7 shrink-0 text-center font-mono text-xs font-semibold text-slate-400">
+                    {idx + 1}
+                  </span>
                   {d.photo_url ? (
                     <img
                       src={d.photo_url}
