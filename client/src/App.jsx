@@ -96,12 +96,6 @@ export default function App() {
   if (!user) {
     return (
       <ToastProvider>
-        <img
-          src="/watermark.png"
-          alt=""
-          aria-hidden="true"
-          className="pointer-events-none fixed top-1/2 left-1/2 z-30 w-64 -translate-x-1/2 -translate-y-1/2 select-none opacity-50 sm:w-80"
-        />
         <Login onLogin={setUser} t={t} />
       </ToastProvider>
     );
@@ -111,12 +105,6 @@ export default function App() {
     <ToastProvider>
       <ConfirmProvider>
         <ImagePreviewProvider>
-          <img
-            src="/watermark.png"
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none fixed top-1/2 left-1/2 z-30 w-72 -translate-x-1/2 -translate-y-1/2 select-none opacity-50 sm:w-96"
-          />
           <Layout
           user={user}
           activePage={activePage}

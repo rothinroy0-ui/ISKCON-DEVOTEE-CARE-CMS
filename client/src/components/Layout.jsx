@@ -107,11 +107,19 @@ export default function Layout({
       </header>
 
       {/* Main Content */}
-      <main className="p-4 sm:p-8">
-        <h2 className="mb-5 text-lg font-bold text-slate-900">
-          {navItems.find((i) => i.id === activePage)?.label}
-        </h2>
-        {children}
+      <main className="relative p-4 sm:p-8">
+        <img
+          src="/watermark.png"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none fixed top-1/2 left-1/2 z-0 w-72 -translate-x-1/2 -translate-y-1/2 select-none opacity-50 sm:w-96"
+        />
+        <div className="relative z-10 [&_.bg-white]:bg-white/85">
+          <h2 className="mb-5 text-lg font-bold text-slate-900">
+            {navItems.find((i) => i.id === activePage)?.label}
+          </h2>
+          {children}
+        </div>
       </main>
     </div>
   );
