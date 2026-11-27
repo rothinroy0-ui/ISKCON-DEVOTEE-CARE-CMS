@@ -1253,6 +1253,38 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
     }
   });
 
+  router.post('/call-log', async (req, res, next) => {
+    try {
+      const { devoteeId, devoteeName, phone, purpose, outcome, notes } =
+        req.body || {};
+      const cleanOutcome = String(outcome || '').trim();
+      if (!cleanOutcome) {
+        return res.status(400).json({ error: 'Call outcome is required' });
+      }
+
+      const detailParts = [
+        `Call (${cleanOutcome})`,
+        devoteeName ? `to ${devoteeName}` : null,
+        phone ? `[${phone}]` : null,
+        purpose ? `— Purpose: ${purpose}` : null,
+        notes ? `— Note: ${String(notes).trim()}` : null,
+      ].filter(Boolean);
+
+      await logAudit(
+        db,
+        req.user,
+        'DEVOTEE_CALL',
+        'devotee_data',
+        Number(devoteeId) || null,
+        detailParts.join(' ')
+      );
+
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }
 

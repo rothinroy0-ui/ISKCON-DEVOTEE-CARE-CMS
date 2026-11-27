@@ -19,6 +19,7 @@ import {
   MessageSquareText,
   Truck,
   Sparkles,
+  PhoneCall,
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
 
@@ -141,6 +142,12 @@ export default function Layout({
       id: 'devotee-greetings',
       label: t.navDevoteeGreetings || 'Devotee Greetings',
       icon: Sparkles,
+      perm: 'communication',
+    },
+    {
+      id: 'devotee-calling',
+      label: t.navDevoteeCalling || 'Devotee Calling',
+      icon: PhoneCall,
       perm: 'communication',
     },
   ].filter((item) => hasPermission(user, item.perm));

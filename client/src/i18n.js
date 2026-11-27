@@ -69,6 +69,7 @@ export const translations = {
     navParcels: 'Parcels',
     navParcelCommunication: 'Parcel Communication',
     navDevoteeGreetings: 'Devotee Greetings',
+    navDevoteeCalling: 'Devotee Calling',
     navRemovals: 'Removal Record',
     navApplications: 'Applications',
     navMarquee: 'Marquee Banner',

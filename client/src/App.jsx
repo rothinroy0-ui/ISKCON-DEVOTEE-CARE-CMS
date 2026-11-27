@@ -15,6 +15,7 @@ const Anniversaries = lazy(() => import('./pages/Anniversaries'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const ParcelCommunication = lazy(() => import('./pages/ParcelCommunication'));
 const DevoteeGreetings = lazy(() => import('./pages/DevoteeGreetings'));
+const DevoteeCalling = lazy(() => import('./pages/DevoteeCalling'));
 const Removals = lazy(() => import('./pages/Removals'));
 const Applications = lazy(() => import('./pages/Applications'));
 const MarqueeSettings = lazy(() => import('./pages/MarqueeSettings'));
@@ -165,6 +166,10 @@ export default function App() {
               {activePage === 'devotee-greetings' &&
                 hasPermission(user, 'communication') && (
                   <DevoteeGreetings user={user} />
+                )}
+              {activePage === 'devotee-calling' &&
+                hasPermission(user, 'communication') && (
+                  <DevoteeCalling user={user} />
                 )}
               {activePage === 'removals' && hasPermission(user, 'removals') && (
                 <Removals user={user} />
