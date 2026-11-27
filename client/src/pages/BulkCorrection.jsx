@@ -360,20 +360,57 @@ export default function BulkCorrection() {
 
           {/* Grouped List */}
           <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/80">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 text-xs font-semibold text-slate-500">
-              <span>
-                Select one or more spellings below, then choose the correct
-                value above
-              </span>
-              {selectedValues.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3 text-xs font-semibold text-slate-500">
+              <label className="flex cursor-pointer items-center gap-2.5 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={
+                    groupedValues.length > 0 &&
+                    groupedValues.every((g) => selectedValues.includes(g.display))
+                  }
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedValues((prev) => {
+                        const set = new Set(prev);
+                        for (const g of groupedValues) set.add(g.display);
+                        return Array.from(set);
+                      });
+                    } else {
+                      const visibleSet = new Set(
+                        groupedValues.map((g) => g.display)
+                      );
+                      setSelectedValues((prev) =>
+                        prev.filter((v) => !visibleSet.has(v))
+                      );
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  Select All ({groupedValues.length}{' '}
+                  {groupedValues.length === 1 ? 'group' : 'groups'})
+                </span>
+              </label>
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedValues([])}
-                  className="text-rose-600 hover:text-rose-700"
+                  onClick={() =>
+                    setSelectedValues(groupedValues.map((g) => g.display))
+                  }
+                  className="text-indigo-600 hover:text-indigo-700"
                 >
-                  Clear Selection ({selectedValues.length})
+                  Select All
                 </button>
-              )}
+                {selectedValues.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedValues([])}
+                    className="text-rose-600 hover:text-rose-700"
+                  >
+                    Clear Selection ({selectedValues.length})
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="max-h-[560px] divide-y divide-slate-100 overflow-y-auto">
