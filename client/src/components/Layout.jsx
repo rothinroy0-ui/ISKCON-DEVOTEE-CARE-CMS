@@ -41,12 +41,12 @@ export default function Layout({
     { id: 'devotees', label: t.navDevotees, icon: Users, perm: 'devotees' },
     { id: 'birthdays', label: t.navBirthdays, icon: Cake, perm: 'birthdays' },
     { id: 'anniversaries', label: t.navAnniversaries, icon: Heart, perm: 'anniversaries' },
+    { id: 'removals', label: t.navRemovals, icon: ArchiveX, perm: 'removals' },
   ].filter((item) => hasPermission(user, item.perm));
 
   const otherNavItems = [
     { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard, perm: 'dashboard' },
     { id: 'parcels', label: t.navParcels, icon: Package, perm: 'parcels' },
-    { id: 'removals', label: t.navRemovals, icon: ArchiveX, perm: 'removals' },
     { id: 'recycle-bin', label: t.navRecycleBin, icon: Recycle, perm: 'devotees_edit' },
     { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
     { id: 'insights', label: t.navInsights, icon: BarChart3, perm: 'insights' },
