@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Cake,
-  CheckCircle2,
   Phone,
   BarChart3,
   FileSpreadsheet,
@@ -154,25 +153,6 @@ export default function Birthdays({ user, t }) {
       ).length,
     [allDevotees]
   );
-
-  const toggleWish = async (d) => {
-    if (!canEdit) return;
-    try {
-      const nextWished = !d.wished_this_year;
-      await apiRequest(`/api/devotees/${d.id}/wish`, {
-        method: 'POST',
-        body: JSON.stringify({ wished: nextWished }),
-      });
-      toast.success(
-        nextWished
-          ? `Marked ${d.full_name} as wished!`
-          : `Removed wish status for ${d.full_name}.`
-      );
-      await loadAll();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
 
   const handleRemoveFromBirthdays = async (d) => {
     if (!canEdit) return;
@@ -681,18 +661,6 @@ export default function Birthdays({ user, t }) {
                           : d.gift_status === 'delivered'
                           ? 'Delivered'
                           : 'Parcel'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleWish(d)}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                          d.wished_this_year
-                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        {d.wished_this_year ? t.wished : t.markWished}
                       </button>
                       <button
                         type="button"
