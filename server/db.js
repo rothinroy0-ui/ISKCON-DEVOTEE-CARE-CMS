@@ -2,11 +2,16 @@ const { Pool } = require('pg');
 const { hashPassword } = require('./auth');
 
 function createPool() {
-  const connectionString = process.env.DATABASE_URL;
+  let connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(
       'DATABASE_URL is not set. Create a .env file (see .env.example) with your PostgreSQL connection string.'
     );
+  }
+
+  const isServerless = Boolean(process.env.VERCEL);
+  if (isServerless && connectionString.includes('pooler.supabase.com:5432')) {
+    connectionString = connectionString.replace('pooler.supabase.com:5432', 'pooler.supabase.com:6543');
   }
 
   const isLocal =
@@ -15,13 +20,11 @@ function createPool() {
     process.env.PG_SSL === 'true' ||
     (process.env.PG_SSL !== 'false' && !isLocal);
 
-  const isServerless = Boolean(process.env.VERCEL);
-
   return new Pool({
     connectionString,
     ssl: useSsl ? { rejectUnauthorized: false } : false,
-    max: isServerless ? 1 : 3,
-    idleTimeoutMillis: isServerless ? 5000 : 10000,
+    max: isServerless ? 1 : 2,
+    idleTimeoutMillis: 3000,
     connectionTimeoutMillis: 10000,
     allowExitOnIdle: true,
   });
@@ -29,6 +32,14 @@ function createPool() {
 
 async function initDb() {
   const pool = createPool();
+
+  const schemaCheck = await pool
+    .query("SELECT to_regclass('public.devotee_removals') AS tbl")
+    .catch(() => ({ rows: [{ tbl: null }] }));
+
+  if (schemaCheck.rows[0]?.tbl) {
+    return pool;
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
