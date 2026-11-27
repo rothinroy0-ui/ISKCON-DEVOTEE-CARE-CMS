@@ -233,7 +233,16 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
         list = list.filter((d) => (d.status || 'active') === status);
       }
 
-      if (sort === 'upcoming_birthday') {
+      if (sort === 'devotee_id') {
+        list.sort((a, b) => {
+          const aid = (a.devotee_id || '').trim().toUpperCase();
+          const bid = (b.devotee_id || '').trim().toUpperCase();
+          if (!aid && !bid) return a.id - b.id;
+          if (!aid) return 1;
+          if (!bid) return -1;
+          return aid.localeCompare(bid, undefined, { numeric: true });
+        });
+      } else if (sort === 'upcoming_birthday') {
         list.sort((a, b) => (a.days_until_birthday ?? 999) - (b.days_until_birthday ?? 999));
       } else if (sort === 'name') {
         list.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));

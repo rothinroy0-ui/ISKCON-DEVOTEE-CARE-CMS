@@ -32,7 +32,7 @@ export default function Devotees({ user, t }) {
   const [search, setSearch] = useState('');
   const [month, setMonth] = useState('');
   const [status, setStatus] = useState('all');
-  const sort = 'upcoming_birthday';
+  const sort = 'devotee_id';
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
