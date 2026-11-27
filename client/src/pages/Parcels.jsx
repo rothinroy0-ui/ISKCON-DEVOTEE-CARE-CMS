@@ -14,6 +14,7 @@ import {
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { useConfirm } from '../components/ConfirmModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
 
 const GIFT_OPTIONS = [
@@ -41,6 +42,7 @@ const MONTHS = [
 export default function Parcels({ user }) {
   const toast = useToast();
   const { openImage } = useImagePreview();
+  const confirm = useConfirm();
   const [allDevotees, setAllDevotees] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -176,6 +178,15 @@ export default function Parcels({ user }) {
 
   const updateGiftStatus = async (d, giftStatus) => {
     if (!canEdit) return;
+    const label =
+      GIFT_OPTIONS.find((o) => o.value === giftStatus)?.label || giftStatus;
+    const ok = await confirm({
+      title: 'Change Parcel Status?',
+      message: `Are you sure you want to change parcel status for "${d.full_name}" to "${label}"?`,
+      confirmText: 'Yes, Update',
+      variant: 'warning',
+    });
+    if (!ok) return;
     try {
       await apiRequest(`/api/devotees/${d.id}/gift`, {
         method: 'POST',
@@ -186,8 +197,6 @@ export default function Parcels({ user }) {
           item.id === d.id ? { ...item, gift_status: giftStatus } : item
         )
       );
-      const label =
-        GIFT_OPTIONS.find((o) => o.value === giftStatus)?.label || giftStatus;
       toast.success(`Parcel status for ${d.full_name} saved: ${label}`);
     } catch (err) {
       toast.error(err.message);

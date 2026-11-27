@@ -179,6 +179,15 @@ export default function Birthdays({ user, t }) {
     if (!canEdit) return;
     const isActive = d.gift_status && d.gift_status !== 'none';
     const nextStatus = isActive ? 'none' : 'packed';
+    const ok = await confirm({
+      title: isActive ? 'Clear Parcel Status?' : 'Mark Parcel as Packed?',
+      message: isActive
+        ? `Are you sure you want to clear the parcel status for "${d.full_name}" (set to No Gift)?`
+        : `Are you sure you want to mark "${d.full_name}" as Gifts Packed?`,
+      confirmText: isActive ? 'Yes, Clear' : 'Yes, Mark Packed',
+      variant: 'warning',
+    });
+    if (!ok) return;
     try {
       await apiRequest(`/api/devotees/${d.id}/gift`, {
         method: 'POST',
