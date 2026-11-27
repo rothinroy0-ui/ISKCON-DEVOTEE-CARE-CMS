@@ -10,6 +10,7 @@ import {
   Search,
   FileSpreadsheet,
   FileText,
+  Trash2,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
@@ -68,7 +69,10 @@ export default function Parcels({ user }) {
       });
       setAllDevotees(
         (res.devotees || []).filter(
-          (d) => !d.removed_categories?.includes('parcel')
+          (d) =>
+            !d.removed_categories?.includes('parcel') &&
+            d.gift_status &&
+            d.gift_status !== 'none'
         )
       );
     } catch (err) {
@@ -210,14 +214,53 @@ export default function Parcels({ user }) {
         method: 'POST',
         body: JSON.stringify({ gift_status: giftStatus }),
       });
-      setAllDevotees((prev) =>
-        prev.map((item) =>
-          item.id === d.id ? { ...item, gift_status: giftStatus } : item
-        )
-      );
-      toast.success(`Parcel status for ${d.full_name} saved: ${label}`);
+      if (giftStatus === 'none') {
+        setAllDevotees((prev) => prev.filter((item) => item.id !== d.id));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(d.id);
+          return next;
+        });
+        toast.success(`Parcel removed for ${d.full_name}.`);
+      } else {
+        setAllDevotees((prev) =>
+          prev.map((item) =>
+            item.id === d.id ? { ...item, gift_status: giftStatus } : item
+          )
+        );
+        toast.success(`Parcel status for ${d.full_name} saved: ${label}`);
+      }
+      window.dispatchEvent(new Event('cms:parcel-updated'));
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleDeleteParcel = async (d) => {
+    if (!canEdit) return;
+    const ok = await confirm({
+      title: 'Delete Parcel Record?',
+      message: `Remove "${d.full_name}" from the Parcel & Gift section?`,
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    try {
+      await apiRequest(`/api/devotees/${d.id}/gift`, {
+        method: 'POST',
+        body: JSON.stringify({ gift_status: 'none' }),
+      });
+      setAllDevotees((prev) => prev.filter((item) => item.id !== d.id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(d.id);
+        return next;
+      });
+      window.dispatchEvent(new Event('cms:parcel-updated'));
+      toast.success(`Parcel removed for ${d.full_name}.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete parcel');
     }
   };
 
@@ -276,13 +319,21 @@ export default function Parcels({ user }) {
         }
       }
       if (updated > 0) {
-        setAllDevotees((prev) =>
-          prev.map((item) =>
-            updatedSet.has(item.id) ? { ...item, gift_status: giftStatus } : item
-          )
-        );
+        if (giftStatus === 'none') {
+          setAllDevotees((prev) => prev.filter((item) => !updatedSet.has(item.id)));
+          toast.success(`Removed ${updated} parcel record(s).`);
+        } else {
+          setAllDevotees((prev) =>
+            prev.map((item) =>
+              updatedSet.has(item.id)
+                ? { ...item, gift_status: giftStatus }
+                : item
+            )
+          );
+          toast.success(`Updated ${updated} devotee(s) to "${label}".`);
+        }
         setSelectedIds(new Set());
-        toast.success(`Updated ${updated} devotee(s) to "${label}".`);
+        window.dispatchEvent(new Event('cms:parcel-updated'));
       } else {
         toast.error('Failed to update selected devotees.');
       }
@@ -692,13 +743,22 @@ export default function Parcels({ user }) {
                 <PackageCheck className="h-3.5 w-3.5" />
                 Delivered
               </button>
+              <button
+                type="button"
+                onClick={() => handleBulkStatusUpdate('none')}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Selected
+              </button>
             </div>
           </div>
         )}
 
         {filteredDevotees.length === 0 ? (
           <div className="rounded-xl bg-slate-50 py-10 text-center text-sm text-slate-500">
-            No matching devotee parcel records
+            No parcel records yet. Click Parcel on a devotee in Birthdays or Anniversaries to add them here.
           </div>
         ) : (
           <div className="max-h-[650px] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200/80">
@@ -770,17 +830,28 @@ export default function Parcels({ user }) {
                 </div>
 
                 {canEdit && (
-                  <select
-                    value={d.gift_status || 'none'}
-                    onChange={(e) => updateGiftStatus(d, e.target.value)}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
-                  >
-                    {GIFT_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={d.gift_status || 'none'}
+                      onChange={(e) => updateGiftStatus(d, e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
+                    >
+                      {GIFT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteParcel(d)}
+                      title="Delete parcel"
+                      className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
