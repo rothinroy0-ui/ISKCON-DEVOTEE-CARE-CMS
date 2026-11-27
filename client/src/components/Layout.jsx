@@ -20,6 +20,7 @@ import {
   Truck,
   Sparkles,
   PhoneCall,
+  CopyCheck,
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
 
@@ -155,6 +156,7 @@ export default function Layout({
   const dataItems = [
     { id: 'recycle-bin', label: t.navRecycleBin, icon: Recycle, perm: 'devotees_edit' },
     { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
+    { id: 'duplicate-finder', label: t.navDuplicateFinder || 'Duplicate Devotee Finder', icon: CopyCheck, perm: 'devotees_edit' },
     { id: 'insights', label: t.navInsights, icon: BarChart3, perm: 'insights' },
     { id: 'marquee', label: t.navMarquee, icon: Megaphone, perm: 'devotees_edit' },
   ].filter((item) => hasPermission(user, item.perm));

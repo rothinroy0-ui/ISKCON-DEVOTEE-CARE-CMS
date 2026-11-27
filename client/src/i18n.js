@@ -75,6 +75,7 @@ export const translations = {
     navMarquee: 'Marquee Banner',
     navRecycleBin: 'Recycle Bin',
     navBulkFix: 'Bulk Correction',
+    navDuplicateFinder: 'Duplicate Devotee Finder',
     navInsights: 'Insights',
     navUsers: 'User Management',
     devoteeId: 'Devotee ID',

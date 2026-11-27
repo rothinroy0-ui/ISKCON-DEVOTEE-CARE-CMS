@@ -21,6 +21,7 @@ const Applications = lazy(() => import('./pages/Applications'));
 const MarqueeSettings = lazy(() => import('./pages/MarqueeSettings'));
 const RecycleBin = lazy(() => import('./pages/RecycleBin'));
 const BulkCorrection = lazy(() => import('./pages/BulkCorrection'));
+const DuplicateFinder = lazy(() => import('./pages/DuplicateFinder'));
 const Insights = lazy(() => import('./pages/Insights'));
 const Users = lazy(() => import('./pages/Users'));
 
@@ -190,6 +191,10 @@ export default function App() {
               {activePage === 'bulk-fix' && hasPermission(user, 'bulk_fix') && (
                 <BulkCorrection />
               )}
+              {activePage === 'duplicate-finder' &&
+                hasPermission(user, 'devotees_edit') && (
+                  <DuplicateFinder user={user} />
+                )}
               {activePage === 'insights' && hasPermission(user, 'insights') && (
                 <Insights />
               )}
