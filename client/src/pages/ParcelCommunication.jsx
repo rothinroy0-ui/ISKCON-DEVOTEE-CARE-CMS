@@ -81,20 +81,31 @@ export default function ParcelCommunication() {
   const [pendingWaLinks, setPendingWaLinks] = useState([]);
   const [visibleCount, setVisibleCount] = useState(60);
 
-  useEffect(() => {
+  const loadParcelDevotees = () => {
     setLoading(true);
-    apiRequest('/api/devotees?sort=upcoming_birthday', { cache: true })
+    apiRequest('/api/devotees?sort=upcoming_birthday', { cache: false })
       .then((res) => {
         setDevotees(
           (res.devotees || []).filter(
-            (d) => !d.removed_categories?.includes('parcel')
+            (d) =>
+              !d.removed_categories?.includes('parcel') &&
+              d.gift_status &&
+              d.gift_status !== 'none'
           )
         );
       })
       .catch((err) => {
-        toast.error(err.message || 'Failed to load devotees');
+        toast.error(err.message || 'Failed to load parcel devotees');
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadParcelDevotees();
+    const onParcelUpdated = () => loadParcelDevotees();
+    window.addEventListener('cms:parcel-updated', onParcelUpdated);
+    return () =>
+      window.removeEventListener('cms:parcel-updated', onParcelUpdated);
   }, []);
 
   const selectedTemplate = useMemo(
@@ -389,11 +400,10 @@ export default function ParcelCommunication() {
 
         <div className="flex flex-wrap items-center gap-2">
           {[
-            { value: 'all', label: 'All Devotees' },
+            { value: 'all', label: 'All Parcels' },
             { value: 'packed', label: 'Dispatched' },
             { value: 'in_transit', label: 'In Transit' },
             { value: 'delivered', label: 'Delivered' },
-            { value: 'none', label: 'No Gift' },
           ].map((opt) => (
             <button
               key={opt.value}
@@ -411,6 +421,19 @@ export default function ParcelCommunication() {
               {opt.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setGiftFilter('all');
+              setSelectedIds(new Set());
+              setSentIds({});
+              setPendingWaLinks([]);
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Clear
+          </button>
         </div>
       </div>
 

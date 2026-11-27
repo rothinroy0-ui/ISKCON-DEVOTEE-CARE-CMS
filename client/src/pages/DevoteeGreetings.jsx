@@ -123,6 +123,7 @@ export default function DevoteeGreetings() {
   const [sentIds, setSentIds] = useState({});
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [pendingWaLinks, setPendingWaLinks] = useState([]);
+  const [showAll, setShowAll] = useState(false);
   const [visibleCount, setVisibleCount] = useState(60);
 
   useEffect(() => {
@@ -159,6 +160,12 @@ export default function DevoteeGreetings() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const hasOccasion =
+      (selectedCat === 'birthday' || selectedCat === 'anniversary') &&
+      occasionFilter !== 'all';
+    if (!q && !hasOccasion && !showAll) {
+      return [];
+    }
     return devotees.filter((d) => {
       if (selectedCat === 'birthday' && occasionFilter !== 'all') {
         const days = d.days_until_birthday;
@@ -421,9 +428,9 @@ export default function DevoteeGreetings() {
           />
         </div>
 
-        {(selectedCat === 'birthday' || selectedCat === 'anniversary') && (
-          <div className="flex flex-wrap items-center gap-2">
-            {[
+        <div className="flex flex-wrap items-center gap-2">
+          {(selectedCat === 'birthday' || selectedCat === 'anniversary') &&
+            [
               { value: 'all', label: 'All Devotees' },
               { value: 'today', label: 'Today' },
               { value: '7d', label: 'Next 7 Days' },
@@ -434,6 +441,7 @@ export default function DevoteeGreetings() {
                 type="button"
                 onClick={() => {
                   setOccasionFilter(opt.value);
+                  if (opt.value === 'all') setShowAll(true);
                   setVisibleCount(60);
                 }}
                 className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
@@ -445,8 +453,30 @@ export default function DevoteeGreetings() {
                 {opt.label}
               </button>
             ))}
-          </div>
-        )}
+          {!showAll && !search.trim() && occasionFilter === 'all' && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+            >
+              Load All Devotees
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setOccasionFilter('all');
+              setShowAll(false);
+              setSelectedIds(new Set());
+              setSentIds({});
+              setPendingWaLinks([]);
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {/* Bulk Selection Bar */}
