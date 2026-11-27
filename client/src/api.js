@@ -29,6 +29,10 @@ export async function apiRequest(path, options = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/api/auth/login')) {
+      setToken('');
+      window.dispatchEvent(new Event('cms:unauthorized'));
+    }
     const err = new Error(data.error || `Request failed (${res.status})`);
     err.status = res.status;
     throw err;

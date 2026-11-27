@@ -16,7 +16,10 @@ function getSecret() {
     fs.writeFileSync(SECRET_FILE, secret, 'utf8');
     return secret;
   } catch {
-    return crypto.randomBytes(32).toString('hex');
+    return crypto
+      .createHmac('sha256', 'iskcon-cms-portal-secret')
+      .update(process.env.DATABASE_URL || 'fallback')
+      .digest('hex');
   }
 }
 

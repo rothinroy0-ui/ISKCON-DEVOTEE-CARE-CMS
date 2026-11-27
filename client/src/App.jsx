@@ -55,15 +55,24 @@ export default function App() {
   const t = translations.en;
 
   useEffect(() => {
+    const handleUnauthorized = () => {
+      setToken('');
+      setUser(null);
+      setActivePage('dashboard');
+    };
+    window.addEventListener('cms:unauthorized', handleUnauthorized);
+
     const token = getToken();
     if (!token) {
       setCheckingAuth(false);
-      return;
+      return () => window.removeEventListener('cms:unauthorized', handleUnauthorized);
     }
     apiRequest('/api/auth/me')
       .then((res) => setUser(res.user))
       .catch(() => setToken(''))
       .finally(() => setCheckingAuth(false));
+
+    return () => window.removeEventListener('cms:unauthorized', handleUnauthorized);
   }, []);
 
   const handleLogout = () => {
