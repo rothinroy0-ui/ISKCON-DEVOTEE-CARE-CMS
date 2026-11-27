@@ -41,6 +41,8 @@ function enrichDevotee(row, wishedMap, refDate, removedMap = new Map(), parcelMa
     wish_wished_at,
     parcel_gift_status,
     removed_categories: _joinedRemoved,
+    deleted_at: _deletedAt,
+    deleted_by_name: _deletedBy,
     ...rest
   } = row;
   return {
