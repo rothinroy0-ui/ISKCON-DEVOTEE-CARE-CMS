@@ -225,6 +225,7 @@ export default function Birthdays({ user, t }) {
           item.id === d.id ? { ...item, gift_status: nextStatus } : item
         )
       );
+      window.dispatchEvent(new Event('cms:parcel-updated'));
       toast.success(
         nextStatus === 'packed'
           ? `Parcel added for ${d.full_name} (Dispatched)!`

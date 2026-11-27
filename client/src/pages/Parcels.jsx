@@ -54,6 +54,8 @@ export default function Parcels({ user }) {
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(60);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const canEdit =
     hasPermission(user, 'parcels') || hasPermission(user, 'devotees_edit');
@@ -62,7 +64,7 @@ export default function Parcels({ user }) {
     setLoading(true);
     try {
       const res = await apiRequest('/api/devotees?sort=upcoming_birthday', {
-        cache: true,
+        cache: false,
       });
       setAllDevotees(
         (res.devotees || []).filter(
@@ -78,6 +80,9 @@ export default function Parcels({ user }) {
 
   useEffect(() => {
     loadDevotees();
+    const onParcelUpdated = () => loadDevotees();
+    window.addEventListener('cms:parcel-updated', onParcelUpdated);
+    return () => window.removeEventListener('cms:parcel-updated', onParcelUpdated);
   }, []);
 
   useEffect(() => {
@@ -151,6 +156,15 @@ export default function Parcels({ user }) {
       );
     }
 
+    if (statusFilter === 'all') {
+      const rank = { packed: 0, in_transit: 1, delivered: 2, none: 3 };
+      list = [...list].sort(
+        (a, b) =>
+          (rank[a.gift_status || 'none'] ?? 3) -
+          (rank[b.gift_status || 'none'] ?? 3)
+      );
+    }
+
     return list;
   }, [allDevotees, statusFilter, selectedMonth, selectedCities, search]);
 
@@ -204,6 +218,76 @@ export default function Parcels({ user }) {
       toast.success(`Parcel status for ${d.full_name} saved: ${label}`);
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const allFilteredSelected =
+    filteredDevotees.length > 0 &&
+    filteredDevotees.every((d) => selectedIds.has(d.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredDevotees.forEach((d) => next.delete(d.id));
+      } else {
+        filteredDevotees.forEach((d) => next.add(d.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkStatusUpdate = async (giftStatus) => {
+    if (!canEdit || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const label =
+      GIFT_OPTIONS.find((o) => o.value === giftStatus)?.label || giftStatus;
+    const ok = await confirm({
+      title: `Bulk Update to ${label}?`,
+      message: `Update parcel status for ${ids.length} selected devotee(s) to "${label}"?`,
+      confirmText: `Yes, Mark ${label} (${ids.length})`,
+      variant: 'warning',
+    });
+    if (!ok) return;
+
+    setBulkBusy(true);
+    let updated = 0;
+    const updatedSet = new Set();
+    try {
+      for (const id of ids) {
+        try {
+          await apiRequest(`/api/devotees/${id}/gift`, {
+            method: 'POST',
+            body: JSON.stringify({ gift_status: giftStatus }),
+          });
+          updated += 1;
+          updatedSet.add(id);
+        } catch {
+          // continue
+        }
+      }
+      if (updated > 0) {
+        setAllDevotees((prev) =>
+          prev.map((item) =>
+            updatedSet.has(item.id) ? { ...item, gift_status: giftStatus } : item
+          )
+        );
+        setSelectedIds(new Set());
+        toast.success(`Updated ${updated} devotee(s) to "${label}".`);
+      } else {
+        toast.error('Failed to update selected devotees.');
+      }
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -529,7 +613,18 @@ export default function Parcels({ user }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {canEdit && filteredDevotees.length > 0 && (
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAll}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                Select All
+              </label>
+            )}
             <button
               type="button"
               disabled={filteredDevotees.length === 0}
@@ -551,6 +646,56 @@ export default function Parcels({ user }) {
           </div>
         </div>
 
+        {canEdit && selectedIds.size > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs font-bold text-white">
+                {selectedIds.size} selected
+              </span>
+              <span className="text-xs font-medium text-indigo-900">
+                Bulk Parcel Action
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                disabled={bulkBusy}
+                className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkStatusUpdate('packed')}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <Package className="h-3.5 w-3.5" />
+                {bulkBusy ? 'Updating...' : `Bulk Dispatched (${selectedIds.size})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkStatusUpdate('in_transit')}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                <Truck className="h-3.5 w-3.5" />
+                In Transit
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkStatusUpdate('delivered')}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <PackageCheck className="h-3.5 w-3.5" />
+                Delivered
+              </button>
+            </div>
+          </div>
+        )}
+
         {filteredDevotees.length === 0 ? (
           <div className="rounded-xl bg-slate-50 py-10 text-center text-sm text-slate-500">
             No matching devotee parcel records
@@ -560,9 +705,20 @@ export default function Parcels({ user }) {
             {filteredDevotees.slice(0, visibleCount).map((d, idx) => (
               <div
                 key={d.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
+                className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 ${
+                  selectedIds.has(d.id) ? 'bg-indigo-50/40' : ''
+                }`}
               >
                 <div className="flex items-center gap-3">
+                  {canEdit && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(d.id)}
+                      onChange={() => toggleSelectOne(d.id)}
+                      aria-label={`Select ${d.full_name}`}
+                      className="h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  )}
                   <span className="w-7 shrink-0 text-center font-mono text-xs font-semibold text-slate-400">
                     {idx + 1}
                   </span>
