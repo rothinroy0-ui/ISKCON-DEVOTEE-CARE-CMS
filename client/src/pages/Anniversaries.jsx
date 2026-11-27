@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { exportCelebrationPdf } from '../utils/pdfExport';
 
 const MONTHS = [
   { month: 1, name: 'January', shortName: 'Jan' },
@@ -290,59 +291,34 @@ export default function Anniversaries() {
   };
 
   const handleExportPdf = async () => {
-    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable'),
-    ]);
     const label = activeMonthObj?.name || 'All_Months';
-    const doc = new jsPDF({ orientation: 'portrait' });
-
-    doc.setFontSize(15);
-    doc.text(
-      `ISKCON Durgapur — ${viewTitle} (${filteredDevotees.length})`,
-      14,
-      16
-    );
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 22);
-
-    autoTable(doc, {
-      startY: 27,
-      head: [
-        [
-          'Devotee ID',
-          'Name (Initiated Name)',
-          'Spouse',
-          'Mobile',
-          'Anniversary Date',
-          'Address',
-        ],
-      ],
-      body: filteredDevotees.map((d) => {
-        const initName = d.initiated_name || d.spiritual_name || '';
-        const nameWithInit = initName
-          ? `${d.full_name || ''} (${initName})`
-          : d.full_name || '';
-        const addr = d.full_address || d.address || '';
-        const city = d.town_city || d.city || '';
-        const fullAddr = addr && city && !addr.toLowerCase().includes(city.toLowerCase())
-          ? `${addr}, ${city}`
-          : addr || city;
-        return [
-          d.devotee_id || '',
-          nameWithInit,
-          d.spouses_name || '',
-          d.contact_no || d.phone || '',
-          d.anniversary_date || '',
-          fullAddr,
-        ];
+    await exportCelebrationPdf({
+      subtitle: `${viewTitle} — Name, Anniversary, Phone & Address`,
+      dateColumnLabel: 'ANNIVERSARY',
+      filename: `ISKCON_Durgapur_${label}_Anniversaries.pdf`,
+      rows: filteredDevotees.map((d) => {
+        const initName = (d.initiated_name || d.spiritual_name || '').trim();
+        const legalName = (d.full_name || '').trim();
+        const baseName = initName ? `${initName} (${legalName})` : legalName;
+        const spouse = (d.spouses_name || '').trim();
+        const displayName =
+          spouse && !['null', 'none', 'na', 'n/a'].includes(spouse.toLowerCase())
+            ? `${baseName}\nSpouse: ${spouse}`
+            : baseName;
+        const addr = (d.full_address || d.address || '').trim();
+        const city = (d.town_city || d.city || '').trim();
+        const fullAddr =
+          addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+            ? `${addr}, ${city}`
+            : addr || city;
+        return {
+          name: displayName,
+          date: d.anniversary_iso || d.anniversary_date || '',
+          phone: d.contact_no || d.phone || '',
+          address: fullAddr,
+        };
       }),
-      styles: { fontSize: 8, cellPadding: 2.5 },
-      headStyles: { fillColor: [225, 29, 72] },
     });
-
-    doc.save(`ISKCON_Durgapur_${label}_Anniversaries.pdf`);
   };
 
   return (

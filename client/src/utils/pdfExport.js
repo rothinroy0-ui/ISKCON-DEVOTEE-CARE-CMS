@@ -100,3 +100,118 @@ export async function exportDevoteesPdf(devotees, { title = 'Devotee Directory',
   const date = new Date().toISOString().slice(0, 10);
   doc.save(`devotees-${date}.pdf`);
 }
+
+function formatReadableDate(raw) {
+  if (!raw) return '';
+  const dt = new Date(raw);
+  if (!Number.isNaN(dt.getTime())) {
+    const day = dt.getDate();
+    const month = dt.toLocaleString('en-US', { month: 'long' });
+    const year = dt.getFullYear();
+    return `${day} ${month}, ${year}`;
+  }
+  return String(raw);
+}
+
+export async function exportCelebrationPdf({
+  subtitle,
+  dateColumnLabel,
+  rows,
+  filename,
+}) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 28;
+  const maroon = [153, 27, 27];
+
+  const generatedStr = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  // Title & Subtitle (Left)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...maroon);
+  doc.text('ISKCON Durgapur — Seva Portal', margin, 36);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...SLATE_500);
+  doc.text(subtitle, margin, 51);
+
+  // Metadata (Right)
+  doc.setFontSize(8.5);
+  doc.setTextColor(...SLATE_900);
+  doc.text(`Generated: ${generatedStr}`, pageWidth - margin, 34, {
+    align: 'right',
+  });
+  doc.text(`Records: ${rows.length}`, pageWidth - margin, 48, {
+    align: 'right',
+  });
+
+  // Maroon divider line
+  doc.setDrawColor(...maroon);
+  doc.setLineWidth(1.2);
+  doc.line(margin, 60, pageWidth - margin, 60);
+
+  autoTable(doc, {
+    startY: 70,
+    head: [['S.NO.', 'DEVOTEE NAME', dateColumnLabel, 'PHONE', 'ADDRESS']],
+    body: rows.map((r, idx) => [
+      String(idx + 1),
+      r.name,
+      formatReadableDate(r.date),
+      r.phone || '',
+      r.address || '',
+    ]),
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: { top: 5, right: 6, bottom: 5, left: 6 },
+      textColor: SLATE_900,
+      lineColor: [203, 213, 225],
+      lineWidth: 0.5,
+      valign: 'middle',
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: [241, 245, 249],
+      textColor: SLATE_900,
+      fontStyle: 'bold',
+      fontSize: 8,
+      halign: 'center',
+      lineColor: [203, 213, 225],
+      lineWidth: 0.5,
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 36, halign: 'center' },
+      1: { cellWidth: 150 },
+      2: { cellWidth: 92, halign: 'center' },
+      3: { cellWidth: 72, halign: 'center' },
+    },
+    margin: { left: margin, right: margin, bottom: 36 },
+  });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...SLATE_500);
+    doc.text(`${page}/${pageCount}`, pageWidth - margin, pageHeight - 16, {
+      align: 'right',
+    });
+  }
+
+  doc.save(filename);
+}

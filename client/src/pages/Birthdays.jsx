@@ -16,6 +16,7 @@ import {
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { exportCelebrationPdf } from '../utils/pdfExport';
 
 export default function Birthdays({ user, t }) {
   const toast = useToast();
@@ -228,57 +229,31 @@ export default function Birthdays({ user, t }) {
   };
 
   const handleExportPdf = async () => {
-    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable'),
-    ]);
     const label = activeMonthObj?.name || 'All_Months';
-    const doc = new jsPDF({ orientation: 'portrait' });
-
-    doc.setFontSize(15);
-    doc.text(
-      `ISKCON Durgapur — ${viewTitle} (${filteredDevotees.length})`,
-      14,
-      16
-    );
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 22);
-
-    autoTable(doc, {
-      startY: 27,
-      head: [
-        [
-          'Devotee ID',
-          'Name (Initiated Name)',
-          'Mobile',
-          'DOB',
-          'Address',
-        ],
-      ],
-      body: filteredDevotees.map((d) => {
-        const initName = d.initiated_name || d.spiritual_name || '';
-        const nameWithInit = initName
-          ? `${d.full_name || ''} (${initName})`
-          : d.full_name || '';
-        const addr = d.full_address || d.address || '';
-        const city = d.town_city || d.city || '';
-        const fullAddr = addr && city && !addr.toLowerCase().includes(city.toLowerCase())
-          ? `${addr}, ${city}`
-          : addr || city;
-        return [
-          d.devotee_id || '',
-          nameWithInit,
-          d.contact_no || d.phone || '',
-          d.dob || '',
-          fullAddr,
-        ];
+    await exportCelebrationPdf({
+      subtitle: `${viewTitle} — Name, Birthday, Phone & Address`,
+      dateColumnLabel: 'BIRTHDAY',
+      filename: `ISKCON_Durgapur_${label}_Birthdays.pdf`,
+      rows: filteredDevotees.map((d) => {
+        const initName = (d.initiated_name || d.spiritual_name || '').trim();
+        const legalName = (d.full_name || '').trim();
+        const displayName = initName
+          ? `${initName} (${legalName})`
+          : legalName;
+        const addr = (d.full_address || d.address || '').trim();
+        const city = (d.town_city || d.city || '').trim();
+        const fullAddr =
+          addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+            ? `${addr}, ${city}`
+            : addr || city;
+        return {
+          name: displayName,
+          date: d.dob_iso || d.dob || '',
+          phone: d.contact_no || d.phone || '',
+          address: fullAddr,
+        };
       }),
-      styles: { fontSize: 8, cellPadding: 2.5 },
-      headStyles: { fillColor: [79, 70, 229] },
     });
-
-    doc.save(`ISKCON_Durgapur_${label}_Birthdays.pdf`);
   };
 
   return (
