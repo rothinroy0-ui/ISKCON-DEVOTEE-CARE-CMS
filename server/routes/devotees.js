@@ -741,7 +741,7 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.post('/bulk-update', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.post('/bulk-update', requireRole('admin'), async (req, res, next) => {
     try {
       const ALLOWED_FIELDS = new Set([
         'spiritual_master',

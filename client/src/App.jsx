@@ -140,11 +140,12 @@ export default function App() {
               {activePage === 'anniversaries' && <Anniversaries user={user} />}
               {activePage === 'parcels' && <Parcels user={user} />}
               {activePage === 'removals' && <Removals user={user} />}
-              {activePage === 'bulk-fix' &&
-                (user.role === 'admin' || user.role === 'editor') && (
-                  <BulkCorrection />
-                )}
-              {activePage === 'insights' && <Insights />}
+              {activePage === 'bulk-fix' && user.role === 'admin' && (
+                <BulkCorrection />
+              )}
+              {activePage === 'insights' && user.role === 'admin' && (
+                <Insights />
+              )}
               {activePage === 'users' && user.role === 'admin' && (
                 <Users currentUser={user} t={t} />
               )}

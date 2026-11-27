@@ -17,7 +17,7 @@ const MONTH_NAMES = [
   'December',
 ];
 
-function createAnalyticsRoutes(db, { requireAuth }) {
+function createAnalyticsRoutes(db, { requireAuth, requireRole }) {
   const router = express.Router();
   router.use(requireAuth);
 
@@ -145,7 +145,7 @@ function createAnalyticsRoutes(db, { requireAuth }) {
     }
   });
 
-  router.get('/insights', async (_req, res, next) => {
+  router.get('/insights', requireRole('admin'), async (_req, res, next) => {
     try {
       const refDate = getLocalToday();
       const currentYear = refDate.getFullYear();
