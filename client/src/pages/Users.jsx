@@ -134,6 +134,12 @@ export default function Users({ currentUser, t }) {
                       >
                         {u.role}
                       </span>
+                      {u.role !== 'admin' && Array.isArray(u.permissions) && (
+                        <div className="mt-1 text-[11px] text-slate-400">
+                          {u.permissions.length} custom permission
+                          {u.permissions.length === 1 ? '' : 's'}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <span

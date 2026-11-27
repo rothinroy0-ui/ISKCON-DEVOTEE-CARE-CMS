@@ -6,11 +6,13 @@ import {
   Heart,
   Package,
   ArchiveX,
+  Recycle,
   Wand2,
   BarChart3,
   ShieldCheck,
   LogOut,
 } from 'lucide-react';
+import { hasPermission } from '../utils/permissions';
 
 export default function Layout({
   user,
@@ -20,22 +22,20 @@ export default function Layout({
   t,
   children,
 }) {
-  const navItems = [
-    { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard },
-    { id: 'devotees', label: t.navDevotees, icon: Users },
-    { id: 'birthdays', label: t.navBirthdays, icon: Cake },
-    { id: 'anniversaries', label: t.navAnniversaries, icon: Heart },
-    { id: 'parcels', label: t.navParcels, icon: Package },
-    { id: 'removals', label: t.navRemovals, icon: ArchiveX },
+  const allNavItems = [
+    { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard, perm: 'dashboard' },
+    { id: 'devotees', label: t.navDevotees, icon: Users, perm: 'devotees' },
+    { id: 'birthdays', label: t.navBirthdays, icon: Cake, perm: 'birthdays' },
+    { id: 'anniversaries', label: t.navAnniversaries, icon: Heart, perm: 'anniversaries' },
+    { id: 'parcels', label: t.navParcels, icon: Package, perm: 'parcels' },
+    { id: 'removals', label: t.navRemovals, icon: ArchiveX, perm: 'removals' },
+    { id: 'recycle-bin', label: t.navRecycleBin, icon: Recycle, perm: 'devotees_edit' },
+    { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
+    { id: 'insights', label: t.navInsights, icon: BarChart3, perm: 'insights' },
+    { id: 'users', label: t.navUsers, icon: ShieldCheck, perm: 'users' },
   ];
 
-  if (user?.role === 'admin') {
-    navItems.push(
-      { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2 },
-      { id: 'insights', label: t.navInsights, icon: BarChart3 },
-      { id: 'users', label: t.navUsers, icon: ShieldCheck }
-    );
-  }
+  const navItems = allNavItems.filter((item) => hasPermission(user, item.perm));
 
   const renderNavItem = (item) => {
     const Icon = item.icon;

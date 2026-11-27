@@ -71,7 +71,7 @@ function enrichDevotee(row, wishedMap, refDate, removedMap = new Map(), parcelMa
   };
 }
 
-function createDevoteeRoutes(db, { requireAuth, requireRole }) {
+function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
   const router = express.Router();
   router.use(requireAuth);
 
@@ -236,6 +236,7 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
           d.upload_your_passport_size_photo
         FROM devotee_removals r
         JOIN devotee_data d ON d.id = r.devotee_id
+        WHERE d.deleted_at IS NULL
         ORDER BY r.removed_at DESC
       `);
       const removals = result.rows.map((row) => ({
@@ -250,7 +251,108 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.post('/:id/remove-from-tab', requireRole('admin', 'editor'), async (req, res, next) => {
+  // ── Recycle Bin ────────────────────────────────────────────────────────────
+  // Deletes are soft (deleted_at), so a full row plus its wishes, parcels and
+  // removal entries survive until an admin permanently deletes it.
+
+  router.get('/recycle-bin', requirePermission('devotees_edit'), async (_req, res, next) => {
+    try {
+      const result = await db.query(`
+        SELECT d.*,
+               (SELECT COUNT(*)::int FROM devotee_birthday_wishes w
+                 WHERE w.devotee_id = d.id::text) AS wish_count,
+               (SELECT COUNT(*)::int FROM parcels p
+                 WHERE p.devotee_id = d.id) AS parcel_count,
+               (SELECT COUNT(*)::int FROM devotee_removals r
+                 WHERE r.devotee_id = d.id) AS removal_count
+          FROM devotee_data d
+         WHERE d.deleted_at IS NOT NULL
+         ORDER BY d.deleted_at DESC
+      `);
+      const devotees = result.rows.map((row) => ({
+        id: row.id,
+        sl_no: row.sl_no,
+        devotee_id: row.devotee_id || `ISKCON_DGP_${String(row.id).padStart(3, '0')}`,
+        full_name: row.full_name,
+        initiated_name: row.initiated_name,
+        contact_no: row.contact_no ? String(row.contact_no) : '',
+        phone: row.contact_no ? String(row.contact_no) : '',
+        town_city: row.town_city,
+        dob: row.dob,
+        gender: row.gender,
+        photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
+        deleted_at: row.deleted_at,
+        deleted_by_name: row.deleted_by_name,
+        wish_count: row.wish_count,
+        parcel_count: row.parcel_count,
+        removal_count: row.removal_count,
+      }));
+      res.json({ devotees, total: devotees.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/recycle-bin/:id/restore', requirePermission('devotees_edit'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const result = await db.query(
+        `UPDATE devotee_data
+            SET deleted_at = NULL, deleted_by_name = NULL
+          WHERE id = $1 AND deleted_at IS NOT NULL
+          RETURNING id, devotee_id, full_name`,
+        [targetId]
+      );
+      const restored = result.rows[0];
+      if (!restored) {
+        return res.status(404).json({ error: 'Deleted devotee not found' });
+      }
+      await logAudit(
+        db,
+        req.user,
+        'RESTORE_DEVOTEE',
+        'devotee_data',
+        targetId,
+        `Restored ${restored.full_name} (${restored.devotee_id}) from Recycle Bin`
+      );
+      res.json({ ok: true, devotee: restored });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/recycle-bin/:id', requirePermission('devotees_edit'), async (req, res, next) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Only an admin can permanently delete a record' });
+      }
+      const targetId = Number(req.params.id);
+      const result = await db.query(
+        `DELETE FROM devotee_data
+          WHERE id = $1 AND deleted_at IS NOT NULL
+          RETURNING id, devotee_id, full_name`,
+        [targetId]
+      );
+      const removed = result.rows[0];
+      if (!removed) {
+        return res.status(404).json({ error: 'Deleted devotee not found' });
+      }
+      await db.query('DELETE FROM devotee_birthday_wishes WHERE devotee_id = $1', [String(targetId)]);
+      await logAudit(
+        db,
+        req.user,
+        'PERMANENT_DELETE_DEVOTEE',
+        'devotee_data',
+        targetId,
+        `Permanently deleted ${removed.full_name} (${removed.devotee_id}) from Recycle Bin`
+      );
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/remove-from-tab', requirePermission('devotees_edit', 'removals'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
       const category = String(req.body?.category || '').trim().toLowerCase();
@@ -260,7 +362,10 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
         return res.status(400).json({ error: 'Invalid category (must be birthday, anniversary, or parcel)' });
       }
 
-      const devRes = await db.query('SELECT id, full_name, devotee_id FROM devotee_data WHERE id = $1', [targetId]);
+      const devRes = await db.query(
+        'SELECT id, full_name, devotee_id FROM devotee_data WHERE id = $1 AND deleted_at IS NULL',
+        [targetId]
+      );
       if (devRes.rows.length === 0) {
         return res.status(404).json({ error: 'Devotee not found' });
       }
@@ -291,13 +396,21 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.delete('/:id/remove-from-tab/:category', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.delete('/:id/remove-from-tab/:category', requirePermission('devotees_edit', 'removals'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
       const category = String(req.params.category || '').trim().toLowerCase();
 
       if (!['birthday', 'anniversary', 'parcel'].includes(category)) {
         return res.status(400).json({ error: 'Invalid category' });
+      }
+
+      const devCheck = await db.query(
+        'SELECT id FROM devotee_data WHERE id = $1 AND deleted_at IS NULL',
+        [targetId]
+      );
+      if (devCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Devotee not found' });
       }
 
       await db.query(
@@ -402,7 +515,10 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
 
   router.get('/:id', async (req, res, next) => {
     try {
-      const result = await db.query('SELECT * FROM devotee_data WHERE id = $1', [Number(req.params.id)]);
+      const result = await db.query(
+        'SELECT * FROM devotee_data WHERE id = $1 AND deleted_at IS NULL',
+        [Number(req.params.id)]
+      );
       const row = result.rows[0];
       if (!row) return res.status(404).json({ error: 'Devotee not found' });
       const refDate = getLocalToday();
@@ -413,7 +529,7 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.post('/', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.post('/', requirePermission('devotees_edit'), async (req, res, next) => {
     try {
       const {
         devotee_id,
@@ -512,10 +628,13 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.put('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.put('/:id', requirePermission('devotees_edit'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
-      const existingRes = await db.query('SELECT * FROM devotee_data WHERE id = $1', [targetId]);
+      const existingRes = await db.query(
+        'SELECT * FROM devotee_data WHERE id = $1 AND deleted_at IS NULL',
+        [targetId]
+      );
       const existing = existingRes.rows[0];
       if (!existing) {
         return res.status(404).json({ error: 'Devotee not found' });
@@ -633,28 +752,43 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.delete('/:id', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.delete('/:id', requirePermission('devotees_edit'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
-      const existingRes = await db.query('SELECT id, devotee_id, full_name FROM devotee_data WHERE id = $1', [targetId]);
-      const existing = existingRes.rows[0];
+      const result = await db.query(
+        `UPDATE devotee_data
+            SET deleted_at = NOW(), deleted_by_name = $2
+          WHERE id = $1 AND deleted_at IS NULL
+          RETURNING id, devotee_id, full_name`,
+        [targetId, req.user.name || req.user.username || 'Unknown']
+      );
+      const existing = result.rows[0];
       if (!existing) {
         return res.status(404).json({ error: 'Devotee not found' });
       }
 
-      await db.query('DELETE FROM devotee_data WHERE id = $1', [targetId]);
-      await db.query('DELETE FROM devotee_birthday_wishes WHERE devotee_id = $1', [String(targetId)]);
-      await logAudit(db, req.user, 'DELETE_DEVOTEE', 'devotee_data', targetId, `Deleted ${existing.full_name} (${existing.devotee_id})`);
-      res.json({ ok: true });
+      // Keep wishes, parcels and removal entries so a restore is lossless.
+      await logAudit(
+        db,
+        req.user,
+        'MOVE_TO_RECYCLE_BIN',
+        'devotee_data',
+        targetId,
+        `Moved ${existing.full_name} (${existing.devotee_id}) to Recycle Bin`
+      );
+      res.json({ ok: true, recycled: true });
     } catch (err) {
       next(err);
     }
   });
 
-  router.post('/:id/wish', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.post('/:id/wish', requirePermission('devotees_edit', 'birthdays'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
-      const existingRes = await db.query('SELECT id, devotee_id, full_name FROM devotee_data WHERE id = $1', [targetId]);
+      const existingRes = await db.query(
+        'SELECT id, devotee_id, full_name FROM devotee_data WHERE id = $1 AND deleted_at IS NULL',
+        [targetId]
+      );
       const existing = existingRes.rows[0];
       if (!existing) {
         return res.status(404).json({ error: 'Devotee not found' });
@@ -686,11 +820,11 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.post('/:id/gift', requireRole('admin', 'editor'), async (req, res, next) => {
+  router.post('/:id/gift', requirePermission('parcels', 'devotees_edit'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
       const existingRes = await db.query(
-        'SELECT id, devotee_id, full_name, contact_no, town_city, full_address FROM devotee_data WHERE id = $1',
+        'SELECT id, devotee_id, full_name, contact_no, town_city, full_address FROM devotee_data WHERE id = $1 AND deleted_at IS NULL',
         [targetId]
       );
       const existing = existingRes.rows[0];
@@ -741,7 +875,7 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.post('/bulk-update', requireRole('admin'), async (req, res, next) => {
+  router.post('/bulk-update', requirePermission('bulk_fix'), async (req, res, next) => {
     try {
       const ALLOWED_FIELDS = new Set([
         'spiritual_master',
@@ -768,7 +902,7 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
       }
 
       const upd = await db.query(
-        `UPDATE devotee_data SET ${field} = $1 WHERE id = ANY($2::int[])`,
+        `UPDATE devotee_data SET ${field} = $1 WHERE id = ANY($2::int[]) AND deleted_at IS NULL`,
         [cleanTo || null, ids]
       );
 

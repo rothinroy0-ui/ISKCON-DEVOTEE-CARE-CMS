@@ -15,6 +15,7 @@ import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
 import { useConfirm } from '../components/ConfirmModal';
 import { exportDevoteesPdf } from '../utils/pdfExport';
+import { hasPermission } from '../utils/permissions';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -36,7 +37,7 @@ export default function Devotees({ user, t }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  const canEdit = user?.role === 'admin' || user?.role === 'editor';
+  const canEdit = hasPermission(user, 'devotees_edit');
 
   const buildQuery = (limit, offset) => {
     const params = new URLSearchParams({ search, month, status, sort });
@@ -91,15 +92,15 @@ export default function Devotees({ user, t }) {
 
   const handleDelete = async (d) => {
     const ok = await confirm({
-      title: 'Delete Devotee?',
-      message: `Are you sure you want to permanently delete "${d.full_name}" (${d.devotee_id}) from the database? This action cannot be undone.`,
-      confirmText: 'Yes, Delete',
+      title: 'Move to Recycle Bin?',
+      message: `Move "${d.full_name}" (${d.devotee_id}) to the Recycle Bin? The record can be restored later from the Recycle Bin tab.`,
+      confirmText: 'Move to Recycle Bin',
       variant: 'danger',
     });
     if (!ok) return;
     try {
       await apiRequest(`/api/devotees/${d.id}`, { method: 'DELETE' });
-      toast.success(`${d.full_name} deleted.`);
+      toast.success(`${d.full_name} moved to Recycle Bin.`);
       await loadDevotees({ limit: Math.max(60, devotees.length), offset: 0 });
     } catch (err) {
       toast.error(err.message);

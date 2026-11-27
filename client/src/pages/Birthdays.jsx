@@ -18,6 +18,7 @@ import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
 import { useConfirm } from '../components/ConfirmModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
+import { hasPermission } from '../utils/permissions';
 
 const MONTH_NAMES = [
   'January',
@@ -50,7 +51,7 @@ export default function Birthdays({ user, t }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const canEdit = user?.role === 'admin' || user?.role === 'editor';
+  const canEdit = hasPermission(user, 'devotees_edit');
 
   const loadAll = async () => {
     setLoading(true);

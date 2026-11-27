@@ -1,5 +1,5 @@
 const express = require('express');
-const { verifyPassword, hashPassword, signToken } = require('../auth');
+const { verifyPassword, hashPassword, signToken, resolvePermissions } = require('../auth');
 const { logAudit } = require('../db');
 
 function createAuthRoutes(db, { requireAuth }) {
@@ -13,7 +13,7 @@ function createAuthRoutes(db, { requireAuth }) {
       }
 
       const result = await db.query(
-        'SELECT id, name, username, email, password_hash, role, is_active FROM users WHERE username = $1',
+        'SELECT id, name, username, email, password_hash, role, permissions, is_active FROM users WHERE username = $1',
         [String(username).trim().toLowerCase()]
       );
       const user = result.rows[0];
@@ -37,6 +37,7 @@ function createAuthRoutes(db, { requireAuth }) {
           username: user.username,
           email: user.email,
           role: user.role,
+          permissions: resolvePermissions(user),
         },
       });
     } catch (err) {

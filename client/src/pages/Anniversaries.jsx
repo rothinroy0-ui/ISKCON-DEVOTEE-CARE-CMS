@@ -18,6 +18,7 @@ import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
 import { useConfirm } from '../components/ConfirmModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
+import { hasPermission } from '../utils/permissions';
 
 const MONTHS = [
   { month: 1, name: 'January', shortName: 'Jan' },
@@ -38,7 +39,7 @@ export default function Anniversaries({ user }) {
   const toast = useToast();
   const { openImage } = useImagePreview();
   const confirm = useConfirm();
-  const canEdit = user?.role === 'admin' || user?.role === 'editor';
+  const canEdit = hasPermission(user, 'devotees_edit');
   const [allDevotees, setAllDevotees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [exactDate, setExactDate] = useState('');

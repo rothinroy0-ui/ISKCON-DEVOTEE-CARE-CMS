@@ -17,7 +17,7 @@ const MONTH_NAMES = [
   'December',
 ];
 
-function createAnalyticsRoutes(db, { requireAuth, requireRole }) {
+function createAnalyticsRoutes(db, { requireAuth, requirePermission }) {
   const router = express.Router();
   router.use(requireAuth);
 
@@ -145,7 +145,7 @@ function createAnalyticsRoutes(db, { requireAuth, requireRole }) {
     }
   });
 
-  router.get('/insights', requireRole('admin'), async (_req, res, next) => {
+  router.get('/insights', requirePermission('insights'), async (_req, res, next) => {
     try {
       const refDate = getLocalToday();
       const currentYear = refDate.getFullYear();
@@ -155,12 +155,17 @@ function createAnalyticsRoutes(db, { requireAuth, requireRole }) {
       const statsRes = await db
         .query(
           `SELECT
-             (SELECT COALESCE(json_agg(json_build_object('channel', channel)), '[]'::json)
-                FROM devotee_birthday_wishes WHERE wish_year = $1) AS wishes,
-             (SELECT COALESCE(json_agg(json_build_object('gift_status', gift_status)), '[]'::json)
-                FROM parcels WHERE parcel_year = $1) AS parcels,
-             (SELECT COALESCE(json_agg(json_build_object('category', category)), '[]'::json)
-                FROM devotee_removals) AS removals`,
+             (SELECT COALESCE(json_agg(json_build_object('channel', w.channel)), '[]'::json)
+                FROM devotee_birthday_wishes w
+                JOIN devotee_data d ON d.id::text = w.devotee_id AND d.deleted_at IS NULL
+               WHERE w.wish_year = $1) AS wishes,
+             (SELECT COALESCE(json_agg(json_build_object('gift_status', p.gift_status)), '[]'::json)
+                FROM parcels p
+                JOIN devotee_data d ON d.id = p.devotee_id AND d.deleted_at IS NULL
+               WHERE p.parcel_year = $1) AS parcels,
+             (SELECT COALESCE(json_agg(json_build_object('category', r.category)), '[]'::json)
+                FROM devotee_removals r
+                JOIN devotee_data d ON d.id = r.devotee_id AND d.deleted_at IS NULL) AS removals`,
           [currentYear]
         )
         .catch(() => ({ rows: [{ wishes: [], parcels: [], removals: [] }] }));

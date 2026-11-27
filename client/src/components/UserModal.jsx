@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import {
+  PERMISSION_OPTIONS,
+  DEFAULT_PERMISSIONS_BY_ROLE,
+} from '../utils/permissions';
 
 export default function UserModal({ isOpen, onClose, onSave, user, t }) {
   const [form, setForm] = useState({
@@ -8,6 +12,7 @@ export default function UserModal({ isOpen, onClose, onSave, user, t }) {
     email: '',
     password: '',
     role: 'editor',
+    permissions: DEFAULT_PERMISSIONS_BY_ROLE.editor,
     is_active: true,
   });
   const [saving, setSaving] = useState(false);
@@ -15,12 +20,16 @@ export default function UserModal({ isOpen, onClose, onSave, user, t }) {
 
   useEffect(() => {
     if (user) {
+      const role = user.role || 'editor';
       setForm({
         name: user.name || '',
         username: user.username || '',
         email: user.email || '',
         password: '',
-        role: user.role || 'editor',
+        role,
+        permissions: Array.isArray(user.permissions)
+          ? user.permissions
+          : DEFAULT_PERMISSIONS_BY_ROLE[role] || [],
         is_active: Boolean(user.is_active),
       });
     } else {
@@ -30,11 +39,29 @@ export default function UserModal({ isOpen, onClose, onSave, user, t }) {
         email: '',
         password: '',
         role: 'editor',
+        permissions: DEFAULT_PERMISSIONS_BY_ROLE.editor,
         is_active: true,
       });
     }
     setError('');
   }, [user, isOpen]);
+
+  const handleRoleChange = (nextRole) => {
+    setForm((prev) => ({
+      ...prev,
+      role: nextRole,
+      permissions: DEFAULT_PERMISSIONS_BY_ROLE[nextRole] || [],
+    }));
+  };
+
+  const togglePermission = (permKey) => {
+    setForm((prev) => ({
+      ...prev,
+      permissions: prev.permissions.includes(permKey)
+        ? prev.permissions.filter((p) => p !== permKey)
+        : [...prev.permissions, permKey],
+    }));
+  };
 
   if (!isOpen) return null;
 
@@ -54,7 +81,7 @@ export default function UserModal({ isOpen, onClose, onSave, user, t }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-900">
             {user ? t.editUser : t.addUser}
@@ -134,13 +161,83 @@ export default function UserModal({ isOpen, onClose, onSave, user, t }) {
             </label>
             <select
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              onChange={(e) => handleRoleChange(e.target.value)}
               className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
             >
               <option value="editor">{t.roleEditor}</option>
               <option value="admin">{t.roleAdmin}</option>
               <option value="viewer">{t.roleViewer}</option>
             </select>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700">
+                Custom Permissions ({form.permissions.length} selected)
+              </label>
+              <div className="flex items-center gap-2 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      permissions: PERMISSION_OPTIONS.map((p) => p.key),
+                    }))
+                  }
+                  className="text-indigo-600 hover:text-indigo-700"
+                >
+                  Select All
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({ ...prev, permissions: [] }))
+                  }
+                  className="text-rose-600 hover:text-rose-700"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <div className="grid max-h-52 grid-cols-1 gap-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 sm:grid-cols-2">
+              {PERMISSION_OPTIONS.map((perm) => {
+                const checked =
+                  form.role === 'admin' || form.permissions.includes(perm.key);
+                return (
+                  <label
+                    key={perm.key}
+                    className={`flex cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-2 text-xs transition ${
+                      checked
+                        ? 'border-indigo-200 bg-white text-slate-900 shadow-2xs'
+                        : 'border-transparent text-slate-500 hover:bg-white/60'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={form.role === 'admin'}
+                      onChange={() => togglePermission(perm.key)}
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div className="min-w-0">
+                      <div className="font-semibold leading-tight">
+                        {perm.label}
+                      </div>
+                      <div className="mt-0.5 text-[10px] leading-tight text-slate-400">
+                        {perm.desc}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            {form.role === 'admin' && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                Admin automatically has full access to all sections.
+              </p>
+            )}
           </div>
 
           {user && (

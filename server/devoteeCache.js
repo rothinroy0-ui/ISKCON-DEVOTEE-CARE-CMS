@@ -34,6 +34,7 @@ const COMBINED_SQL = `
         FROM devotee_removals rr
        WHERE rr.devotee_id = d.id
     ) r ON TRUE
+   WHERE d.deleted_at IS NULL
    ORDER BY d.devotee_id ASC`;
 
 async function getDevoteeRows(db, year) {

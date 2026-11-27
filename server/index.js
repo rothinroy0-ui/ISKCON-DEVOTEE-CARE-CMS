@@ -4,6 +4,7 @@ const compression = require('compression');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initDb } = require('./db');
+const { ensureRecycleBinSchema } = require('./recycleBinMigration');
 const { warmDevoteeCache } = require('./devoteeCache');
 const { createAuthMiddleware } = require('./auth');
 const createAuthRoutes = require('./routes/auth');
@@ -17,6 +18,7 @@ let appPromise = null;
 
 async function createApp() {
   const db = await initDb();
+  await ensureRecycleBinSchema(db);
   const authMiddleware = createAuthMiddleware(db);
 
   // Keep the devotee cache warm on long-running servers. Serverless functions

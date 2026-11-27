@@ -25,6 +25,61 @@ function getSecret() {
 
 const SECRET = getSecret();
 
+const ALL_PERMISSIONS = [
+  'dashboard',
+  'devotees',
+  'devotees_edit',
+  'birthdays',
+  'anniversaries',
+  'parcels',
+  'removals',
+  'bulk_fix',
+  'insights',
+  'users',
+];
+
+const DEFAULT_PERMISSIONS_BY_ROLE = {
+  admin: [...ALL_PERMISSIONS],
+  editor: [
+    'dashboard',
+    'devotees',
+    'devotees_edit',
+    'birthdays',
+    'anniversaries',
+    'parcels',
+    'removals',
+  ],
+  viewer: [
+    'dashboard',
+    'devotees',
+    'birthdays',
+    'anniversaries',
+    'parcels',
+    'removals',
+  ],
+};
+
+function resolvePermissions(user) {
+  if (!user) return [];
+  if (user.role === 'admin' && !user.permissions) {
+    return [...ALL_PERMISSIONS];
+  }
+  if (Array.isArray(user.permissions)) {
+    return user.permissions.filter((p) => ALL_PERMISSIONS.includes(p));
+  }
+  if (typeof user.permissions === 'string' && user.permissions.trim()) {
+    try {
+      const parsed = JSON.parse(user.permissions);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((p) => ALL_PERMISSIONS.includes(p));
+      }
+    } catch {
+      // ignore invalid JSON
+    }
+  }
+  return DEFAULT_PERMISSIONS_BY_ROLE[user.role] || DEFAULT_PERMISSIONS_BY_ROLE.viewer;
+}
+
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -97,7 +152,7 @@ function createAuthMiddleware(db) {
       }
 
       const result = await db.query(
-        'SELECT id, name, username, email, role, is_active FROM users WHERE id = $1',
+        'SELECT id, name, username, email, role, permissions, is_active FROM users WHERE id = $1',
         [payload.id]
       );
       const user = result.rows[0];
@@ -106,7 +161,10 @@ function createAuthMiddleware(db) {
         return res.status(401).json({ error: 'Account is disabled or not found' });
       }
 
-      req.user = user;
+      req.user = {
+        ...user,
+        permissions: resolvePermissions(user),
+      };
       next();
     } catch (err) {
       next(err);
@@ -122,10 +180,29 @@ function createAuthMiddleware(db) {
     };
   }
 
-  return { requireAuth, requireRole };
+  function requirePermission(...perms) {
+    return (req, res, next) => {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      if (req.user.role === 'admin') {
+        return next();
+      }
+      const userPerms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+      if (!perms.some((p) => userPerms.includes(p))) {
+        return res.status(403).json({ error: 'You do not have permission for this action' });
+      }
+      next();
+    };
+  }
+
+  return { requireAuth, requireRole, requirePermission };
 }
 
 module.exports = {
+  ALL_PERMISSIONS,
+  DEFAULT_PERMISSIONS_BY_ROLE,
+  resolvePermissions,
   hashPassword,
   verifyPassword,
   signToken,

@@ -16,6 +16,7 @@ import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
 import { useConfirm } from '../components/ConfirmModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
+import { hasPermission } from '../utils/permissions';
 
 const GIFT_OPTIONS = [
   { value: 'none', label: 'No Gift' },
@@ -54,7 +55,8 @@ export default function Parcels({ user }) {
   const [visibleCount, setVisibleCount] = useState(60);
   const [loading, setLoading] = useState(true);
 
-  const canEdit = user?.role === 'admin' || user?.role === 'editor';
+  const canEdit =
+    hasPermission(user, 'parcels') || hasPermission(user, 'devotees_edit');
 
   const loadDevotees = async () => {
     setLoading(true);

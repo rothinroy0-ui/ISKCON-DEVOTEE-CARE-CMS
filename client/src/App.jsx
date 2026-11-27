@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import { ImagePreviewProvider } from './components/ImagePreviewModal';
 import { ConfirmProvider } from './components/ConfirmModal';
+import { hasPermission } from './utils/permissions';
 import Login from './pages/Login';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -13,6 +14,7 @@ const Birthdays = lazy(() => import('./pages/Birthdays'));
 const Anniversaries = lazy(() => import('./pages/Anniversaries'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const Removals = lazy(() => import('./pages/Removals'));
+const RecycleBin = lazy(() => import('./pages/RecycleBin'));
 const BulkCorrection = lazy(() => import('./pages/BulkCorrection'));
 const Insights = lazy(() => import('./pages/Insights'));
 const Users = lazy(() => import('./pages/Users'));
@@ -120,21 +122,34 @@ export default function App() {
                 </div>
               }
             >
-              {activePage === 'dashboard' && (
+              {activePage === 'dashboard' && hasPermission(user, 'dashboard') && (
                 <Dashboard user={user} t={t} onNavigate={setActivePage} />
               )}
-              {activePage === 'devotees' && <Devotees user={user} t={t} />}
-              {activePage === 'birthdays' && <Birthdays user={user} t={t} />}
-              {activePage === 'anniversaries' && <Anniversaries user={user} />}
-              {activePage === 'parcels' && <Parcels user={user} />}
-              {activePage === 'removals' && <Removals user={user} />}
-              {activePage === 'bulk-fix' && user.role === 'admin' && (
+              {activePage === 'devotees' && hasPermission(user, 'devotees') && (
+                <Devotees user={user} t={t} />
+              )}
+              {activePage === 'birthdays' && hasPermission(user, 'birthdays') && (
+                <Birthdays user={user} t={t} />
+              )}
+              {activePage === 'anniversaries' &&
+                hasPermission(user, 'anniversaries') && (
+                  <Anniversaries user={user} />
+                )}
+              {activePage === 'parcels' && hasPermission(user, 'parcels') && (
+                <Parcels user={user} />
+              )}
+              {activePage === 'removals' && hasPermission(user, 'removals') && (
+                <Removals user={user} />
+              )}
+              {activePage === 'recycle-bin' &&
+                hasPermission(user, 'devotees_edit') && <RecycleBin user={user} />}
+              {activePage === 'bulk-fix' && hasPermission(user, 'bulk_fix') && (
                 <BulkCorrection />
               )}
-              {activePage === 'insights' && user.role === 'admin' && (
+              {activePage === 'insights' && hasPermission(user, 'insights') && (
                 <Insights />
               )}
-              {activePage === 'users' && user.role === 'admin' && (
+              {activePage === 'users' && hasPermission(user, 'users') && (
                 <Users currentUser={user} t={t} />
               )}
             </Suspense>

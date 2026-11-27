@@ -38,10 +38,12 @@ async function initDb() {
   const pool = createPool();
 
   const schemaCheck = await pool
-    .query("SELECT to_regclass('public.parcels') AS tbl")
-    .catch(() => ({ rows: [{ tbl: null }] }));
+    .query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'permissions'"
+    )
+    .catch(() => ({ rows: [] }));
 
-  if (schemaCheck.rows[0]?.tbl) {
+  if (schemaCheck.rows.length > 0) {
     return pool;
   }
 
@@ -77,7 +79,9 @@ async function initDb() {
       first_initiation_date TEXT,
       second_initiation_date TEXT,
       anniversary_date TEXT,
-      upload_your_passport_size_photo TEXT
+      upload_your_passport_size_photo TEXT,
+      deleted_at TIMESTAMPTZ,
+      deleted_by_name TEXT
     );
 
     CREATE TABLE IF NOT EXISTS devotee_birthday_wishes (
@@ -129,6 +133,7 @@ async function initDb() {
       UNIQUE(devotee_id, parcel_year)
     );
 
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT;
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS devotee_id TEXT;
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS sl_no INTEGER;
     ALTER TABLE devotee_birthday_wishes ADD COLUMN IF NOT EXISTS gift_status TEXT NOT NULL DEFAULT 'none';

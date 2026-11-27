@@ -11,6 +11,7 @@ import {
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { hasPermission } from '../utils/permissions';
 
 const CATEGORY_META = {
   birthday: {
@@ -39,7 +40,8 @@ export default function Removals({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const canEdit = user?.role === 'admin' || user?.role === 'editor';
+  const canEdit =
+    hasPermission(user, 'removals') || hasPermission(user, 'devotees_edit');
 
   const loadRemovals = async () => {
     setLoading(true);
