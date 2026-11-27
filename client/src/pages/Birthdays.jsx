@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   Phone,
   BarChart3,
-  Users,
   FileSpreadsheet,
   FileText,
   Search,
@@ -192,8 +191,6 @@ export default function Birthdays({ user, t }) {
 
   const monthlyCounts = analytics?.monthlyCounts || [];
   const maxMonthCount = Math.max(1, ...monthlyCounts.map((m) => m.count));
-  const ageGroups = analytics?.ageGroups || [];
-  const maxAgeCount = Math.max(1, ...ageGroups.map((a) => a.count));
 
   const activeMonthObj =
     selectedMonth === 'all'
@@ -504,9 +501,8 @@ export default function Birthdays({ user, t }) {
         </div>
       </div>
 
-      {/* Celebration Devotees List + Age Groups */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80 lg:col-span-2">
+      {/* Celebration Devotees List */}
+      <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="rounded-xl bg-rose-50 p-2 text-rose-600">
@@ -648,39 +644,6 @@ export default function Birthdays({ user, t }) {
               )}
             </div>
           )}
-        </div>
-
-        {/* Age Group Analytics */}
-        <div className="space-y-6">
-          <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80">
-            <div className="mb-4 flex items-center gap-2.5">
-              <div className="rounded-xl bg-amber-50 p-2 text-amber-600">
-                <Users className="h-5 w-5" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900">
-                {t.ageGroupChart}
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {ageGroups.map((g) => (
-                <div key={g.label}>
-                  <div className="mb-1 flex justify-between text-xs font-medium text-slate-700">
-                    <span>{g.label}</span>
-                    <span className="font-bold">{g.count}</span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      style={{
-                        width: `${Math.round((g.count / maxAgeCount) * 100)}%`,
-                      }}
-                      className="h-full rounded-full bg-amber-500"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

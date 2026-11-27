@@ -14,6 +14,7 @@ import {
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { exportCelebrationPdf } from '../utils/pdfExport';
 
 const GIFT_OPTIONS = [
   { value: 'none', label: 'No Gift' },
@@ -212,58 +213,33 @@ export default function Parcels({ user }) {
   };
 
   const handleExportPdf = async () => {
-    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-      import('jspdf'),
-      import('jspdf-autotable'),
-    ]);
-    const doc = new jsPDF({ orientation: 'portrait' });
-
-    doc.setFontSize(15);
-    doc.text(
-      `ISKCON Durgapur — Parcel Dispatch (${filteredDevotees.length})`,
-      14,
-      16
-    );
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 22);
-
-    autoTable(doc, {
-      startY: 27,
-      head: [
-        [
-          'S.NO.',
-          'Devotee ID',
-          'Name (Initiated Name)',
-          'Mobile',
-          'Address',
-          'Parcel Status',
-        ],
-      ],
-      body: filteredDevotees.map((d, idx) => {
-        const initName = d.initiated_name || d.spiritual_name || '';
-        const nameWithInit = initName
-          ? `${d.full_name || ''} (${initName})`
-          : d.full_name || '';
-        const addr = d.full_address || d.address || '';
-        const city = d.town_city || d.city || '';
-        const fullAddr = addr && city && !addr.toLowerCase().includes(city.toLowerCase())
-          ? `${addr}, ${city}`
-          : addr || city;
-        return [
-          String(idx + 1),
-          d.devotee_id || '',
-          nameWithInit,
-          d.contact_no || d.phone || '',
-          fullAddr,
-          GIFT_OPTIONS.find((g) => g.value === d.gift_status)?.label || 'No Gift',
-        ];
+    await exportCelebrationPdf({
+      subtitle: 'Parcel & Gift Dispatch — Name, Status, Phone & Address',
+      dateColumnLabel: 'PARCEL STATUS',
+      filename: 'ISKCON_Durgapur_Parcels.pdf',
+      formatDate: false,
+      rows: filteredDevotees.map((d) => {
+        const initName = (d.initiated_name || d.spiritual_name || '').trim();
+        const legalName = (d.full_name || '').trim();
+        const displayName = initName
+          ? `${initName} (${legalName})`
+          : legalName;
+        const addr = (d.full_address || d.address || '').trim();
+        const city = (d.town_city || d.city || '').trim();
+        const fullAddr =
+          addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+            ? `${addr}, ${city}`
+            : addr || city;
+        const statusLabel =
+          GIFT_OPTIONS.find((g) => g.value === d.gift_status)?.label || 'No Gift';
+        return {
+          name: displayName,
+          date: statusLabel,
+          phone: d.contact_no || d.phone || '',
+          address: fullAddr,
+        };
       }),
-      styles: { fontSize: 8, cellPadding: 2.5 },
-      headStyles: { fillColor: [79, 70, 229] },
     });
-
-    doc.save('ISKCON_Durgapur_Parcels.pdf');
   };
 
   if (loading && allDevotees.length === 0) {
