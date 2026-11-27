@@ -14,9 +14,11 @@ import {
   X,
   Phone,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { exportCelebrationPdf } from '../utils/pdfExport';
 
 function isFilled(v) {
   if (v === null || v === undefined) return false;
@@ -214,6 +216,37 @@ export default function Insights() {
         (d.town_city && d.town_city.toLowerCase().includes(q))
     );
   }, [drilldown, modalSearch]);
+
+  const handleExportDrilldownPdf = async () => {
+    if (!drilldown || filteredModalList.length === 0) return;
+    const safeSlug = drilldown.title
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '');
+    await exportCelebrationPdf({
+      subtitle: `${drilldown.title} — Name, Birthday, Phone & Address`,
+      dateColumnLabel: 'BIRTHDAY',
+      filename: `ISKCON_Durgapur_${safeSlug || 'Insights'}.pdf`,
+      rows: filteredModalList.map((d) => {
+        const initName = (d.initiated_name || d.spiritual_name || '').trim();
+        const legalName = (d.full_name || '').trim();
+        const displayName = initName
+          ? `${initName} (${legalName})`
+          : legalName;
+        const addr = (d.full_address || d.address || '').trim();
+        const city = (d.town_city || d.city || '').trim();
+        const fullAddr =
+          addr && city && !addr.toLowerCase().includes(city.toLowerCase())
+            ? `${addr}, ${city}`
+            : addr || city;
+        return {
+          name: displayName,
+          date: d.dob_iso || d.dob || '',
+          phone: d.contact_no || d.phone || '',
+          address: fullAddr,
+        };
+      }),
+    });
+  };
 
   if (loading && !data) {
     return (
@@ -716,20 +749,33 @@ export default function Insights() {
             className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-bold text-slate-900">
                   {drilldown.title}
                 </h3>
-                <p className="text-xs text-slate-500">{drilldown.subtitle}</p>
+                <p className="text-xs text-slate-500">
+                  {filteredModalList.length} devotees
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setDrilldown(null)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={filteredModalList.length === 0}
+                  onClick={handleExportDrilldownPdf}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-40"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Export PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDrilldown(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             <div className="border-b border-slate-100 px-6 py-3">
