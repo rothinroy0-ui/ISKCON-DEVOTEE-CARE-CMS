@@ -11,6 +11,7 @@ import {
   MapPin,
   ChevronDown,
   ArchiveX,
+  Package,
   X,
 } from 'lucide-react';
 import { apiRequest } from '../api';
@@ -191,6 +192,30 @@ export default function Birthdays({ user, t }) {
       toast.success(`${d.full_name} moved to Removal Record.`);
     } catch (err) {
       toast.error(err.message || 'Failed to remove record');
+    }
+  };
+
+  const handleParcelToggle = async (d) => {
+    if (!canEdit) return;
+    const isActive = d.gift_status && d.gift_status !== 'none';
+    const nextStatus = isActive ? 'none' : 'packed';
+    try {
+      await apiRequest(`/api/devotees/${d.id}/gift`, {
+        method: 'POST',
+        body: JSON.stringify({ gift_status: nextStatus }),
+      });
+      setAllDevotees((prev) =>
+        prev.map((item) =>
+          item.id === d.id ? { ...item, gift_status: nextStatus } : item
+        )
+      );
+      toast.success(
+        nextStatus === 'packed'
+          ? `Parcel added for ${d.full_name} (Gifts Packed)!`
+          : `Parcel cleared for ${d.full_name}.`
+      );
+    } catch (err) {
+      toast.error(err.message || 'Failed to update parcel status');
     }
   };
 
@@ -637,7 +662,26 @@ export default function Birthdays({ user, t }) {
                   </div>
 
                   {canEdit && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleParcelToggle(d)}
+                        title="Add or toggle Parcel status"
+                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                          d.gift_status && d.gift_status !== 'none'
+                            ? 'bg-amber-600 text-white hover:bg-amber-700'
+                            : 'border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                        }`}
+                      >
+                        <Package className="h-3.5 w-3.5" />
+                        {d.gift_status === 'packed'
+                          ? 'Packed'
+                          : d.gift_status === 'in_transit'
+                          ? 'In Transit'
+                          : d.gift_status === 'delivered'
+                          ? 'Delivered'
+                          : 'Parcel'}
+                      </button>
                       <button
                         type="button"
                         onClick={() => toggleWish(d)}
