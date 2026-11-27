@@ -13,6 +13,7 @@ const Birthdays = lazy(() => import('./pages/Birthdays'));
 const Anniversaries = lazy(() => import('./pages/Anniversaries'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const Removals = lazy(() => import('./pages/Removals'));
+const BulkCorrection = lazy(() => import('./pages/BulkCorrection'));
 const Insights = lazy(() => import('./pages/Insights'));
 const Users = lazy(() => import('./pages/Users'));
 
@@ -127,6 +128,10 @@ export default function App() {
               {activePage === 'anniversaries' && <Anniversaries user={user} />}
               {activePage === 'parcels' && <Parcels user={user} />}
               {activePage === 'removals' && <Removals user={user} />}
+              {activePage === 'bulk-fix' &&
+                (user.role === 'admin' || user.role === 'editor') && (
+                  <BulkCorrection />
+                )}
               {activePage === 'insights' && <Insights />}
               {activePage === 'users' && user.role === 'admin' && (
                 <Users currentUser={user} t={t} />

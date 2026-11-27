@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const compression = require('compression');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initDb } = require('./db');
@@ -18,6 +19,8 @@ async function createApp() {
   const authMiddleware = createAuthMiddleware(db);
 
   const app = express();
+  app.disable('x-powered-by');
+  app.use(compression({ threshold: 1024 }));
   app.use(express.json({ limit: '5mb' }));
 
   app.get('/api/health', async (_req, res, next) => {
@@ -36,9 +39,22 @@ async function createApp() {
 
   const clientDist = path.join(__dirname, '..', 'client', 'dist');
   if (!process.env.VERCEL && fs.existsSync(clientDist)) {
-    app.use(express.static(clientDist));
+    app.use(
+      express.static(clientDist, {
+        etag: true,
+        lastModified: true,
+        setHeaders(res, filePath) {
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      })
+    );
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(clientDist, 'index.html'));
     });
   }

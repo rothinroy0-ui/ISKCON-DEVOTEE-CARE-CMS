@@ -6,6 +6,7 @@ import {
   Heart,
   Package,
   ArchiveX,
+  Wand2,
   BarChart3,
   ShieldCheck,
   LogOut,
@@ -26,6 +27,9 @@ export default function Layout({
     { id: 'anniversaries', label: t.navAnniversaries, icon: Heart },
     { id: 'parcels', label: t.navParcels, icon: Package },
     { id: 'removals', label: t.navRemovals, icon: ArchiveX },
+    ...(user?.role === 'admin' || user?.role === 'editor'
+      ? [{ id: 'bulk-fix', label: t.navBulkFix, icon: Wand2 }]
+      : []),
     { id: 'insights', label: t.navInsights, icon: BarChart3 },
   ];
 

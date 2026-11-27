@@ -32,7 +32,15 @@ function enrichDevotee(row, wishedMap, refDate, removedMap = new Map(), parcelMa
   const phoneStr = row.contact_no ? String(row.contact_no) : '';
   const whatsappStr = row.whatsapp_no ? String(row.whatsapp_no) : '';
   const wishRow = wishedMap.get(String(row.id));
-  const { upload_your_passport_size_photo, ...rest } = row;
+  const {
+    upload_your_passport_size_photo,
+    wish_year,
+    wish_channel,
+    wish_gift_status,
+    parcel_gift_status,
+    removed_categories: _joinedRemoved,
+    ...rest
+  } = row;
   return {
     ...rest,
     id: row.id,
@@ -108,11 +116,49 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     try {
       const { search = '', month = '', sort = 'upcoming_birthday' } = req.query;
       const refDate = getLocalToday();
-      const wishedSet = await getWishedSet(refDate.getFullYear());
-      const removedMap = await getRemovedMap();
-      const parcelMap = await getParcelMap(refDate.getFullYear());
-      const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
-      let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate, removedMap, parcelMap));
+      const year = refDate.getFullYear();
+
+      // Single round-trip: devotee rows plus their wish/parcel/removal state.
+      const result = await db.query(
+        `SELECT d.*,
+                w.wish_year       AS wish_year,
+                w.channel         AS wish_channel,
+                w.gift_status     AS wish_gift_status,
+                p.gift_status     AS parcel_gift_status,
+                COALESCE(r.categories, ARRAY[]::text[]) AS removed_categories
+           FROM devotee_data d
+           LEFT JOIN devotee_birthday_wishes w
+             ON w.devotee_id = d.id::text AND w.wish_year = $1
+           LEFT JOIN parcels p
+             ON p.devotee_id = d.id AND p.parcel_year = $1
+           LEFT JOIN LATERAL (
+             SELECT array_agg(rr.category) AS categories
+               FROM devotee_removals rr
+              WHERE rr.devotee_id = d.id
+           ) r ON TRUE
+          ORDER BY d.devotee_id ASC`,
+        [year]
+      );
+
+      const wishedMap = new Map();
+      const removedMap = new Map();
+      const parcelMap = new Map();
+      for (const row of result.rows) {
+        if (row.wish_year !== null && row.wish_year !== undefined) {
+          wishedMap.set(String(row.id), {
+            channel: row.wish_channel,
+            gift_status: row.wish_gift_status,
+          });
+        }
+        if (row.removed_categories && row.removed_categories.length > 0) {
+          removedMap.set(Number(row.id), row.removed_categories);
+        }
+        if (row.parcel_gift_status) {
+          parcelMap.set(Number(row.id), row.parcel_gift_status);
+        }
+      }
+
+      let list = result.rows.map((r) => enrichDevotee(r, wishedMap, refDate, removedMap, parcelMap));
 
       if (search.trim()) {
         const q = search.trim().toLowerCase();
@@ -141,7 +187,18 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
         list.sort((a, b) => String(b.devotee_id).localeCompare(String(a.devotee_id)));
       }
 
-      res.json({ devotees: list });
+      const total = list.length;
+      const limitNum = Number(req.query.limit);
+      const offsetNum = Number(req.query.offset);
+      const hasLimit = Number.isFinite(limitNum) && limitNum > 0;
+      const offset = Number.isFinite(offsetNum) && offsetNum > 0 ? Math.floor(offsetNum) : 0;
+      if (hasLimit) {
+        list = list.slice(offset, offset + Math.floor(limitNum));
+      } else if (offset > 0) {
+        list = list.slice(offset);
+      }
+
+      res.json({ devotees: list, total });
     } catch (err) {
       next(err);
     }
@@ -675,6 +732,52 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
 
       await logAudit(db, req.user, 'PARCEL_STATUS', 'parcels', targetId, `Parcel status "${validStatus}" for ${existing.full_name}`);
       res.json({ ok: true, gift_status: validStatus });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/bulk-update', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const ALLOWED_FIELDS = new Set([
+        'spiritual_master',
+        'teacher_name',
+        'initiated_name',
+        'town_city',
+        'blood_group',
+        'gender',
+      ]);
+
+      const { field, toValue, devoteeIds } = req.body || {};
+      if (!ALLOWED_FIELDS.has(field)) {
+        return res.status(400).json({ error: 'Invalid field for bulk update' });
+      }
+
+      const cleanTo = toValue !== undefined && toValue !== null ? String(toValue).trim() : '';
+      if (!Array.isArray(devoteeIds) || devoteeIds.length === 0) {
+        return res.status(400).json({ error: 'Please select at least one devotee record' });
+      }
+
+      const ids = devoteeIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      if (ids.length === 0) {
+        return res.status(400).json({ error: 'No valid devotee IDs provided' });
+      }
+
+      const upd = await db.query(
+        `UPDATE devotee_data SET ${field} = $1 WHERE id = ANY($2::int[])`,
+        [cleanTo || null, ids]
+      );
+
+      await logAudit(
+        db,
+        req.user,
+        'BULK_UPDATE',
+        'devotee_data',
+        null,
+        `Bulk updated ${field} to "${cleanTo}" for ${upd.rowCount} devotees`
+      );
+
+      res.json({ ok: true, updatedCount: upd.rowCount });
     } catch (err) {
       next(err);
     }
