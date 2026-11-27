@@ -226,7 +226,7 @@ export default function Devotees({ user, t }) {
                 devotees.slice(0, visibleCount).map((d, idx) => (
                   <tr key={d.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-4 font-mono text-xs font-semibold text-slate-500">
-                      {d.sl_no ?? idx + 1}
+                      {idx + 1}
                     </td>
                     <td className="px-5 py-4">
                       <span className="inline-flex rounded-lg bg-indigo-50 px-2.5 py-1 font-mono text-xs font-bold text-indigo-700 ring-1 ring-indigo-200/80">
