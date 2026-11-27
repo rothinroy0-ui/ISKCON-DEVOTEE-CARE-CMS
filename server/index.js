@@ -4,6 +4,7 @@ const compression = require('compression');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initDb } = require('./db');
+const { warmDevoteeCache } = require('./devoteeCache');
 const { createAuthMiddleware } = require('./auth');
 const createAuthRoutes = require('./routes/auth');
 const createUserRoutes = require('./routes/users');
@@ -17,6 +18,14 @@ let appPromise = null;
 async function createApp() {
   const db = await initDb();
   const authMiddleware = createAuthMiddleware(db);
+
+  // Keep the devotee cache warm on long-running servers. Serverless functions
+  // are short-lived, so they rely on the per-invocation read instead.
+  if (!process.env.VERCEL) {
+    warmDevoteeCache(db);
+    const refresher = setInterval(() => warmDevoteeCache(db), 120000);
+    if (typeof refresher.unref === 'function') refresher.unref();
+  }
 
   const app = express();
   app.disable('x-powered-by');

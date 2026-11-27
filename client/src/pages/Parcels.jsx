@@ -59,7 +59,9 @@ export default function Parcels({ user }) {
   const loadDevotees = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('/api/devotees?sort=upcoming_birthday');
+      const res = await apiRequest('/api/devotees?sort=upcoming_birthday', {
+        cache: true,
+      });
       setAllDevotees(
         (res.devotees || []).filter(
           (d) => !d.removed_categories?.includes('parcel')

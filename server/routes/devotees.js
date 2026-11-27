@@ -1,5 +1,6 @@
 const express = require('express');
 const { logAudit } = require('../db');
+const { getDevoteeRows, invalidateDevoteeCache } = require('../devoteeCache');
 const { computeBirthdayInfo, getLocalToday, parseDob } = require('../utils/birthday');
 
 function normalizePhotoUrl(raw) {
@@ -37,6 +38,7 @@ function enrichDevotee(row, wishedMap, refDate, removedMap = new Map(), parcelMa
     wish_year,
     wish_channel,
     wish_gift_status,
+    wish_wished_at,
     parcel_gift_status,
     removed_categories: _joinedRemoved,
     ...rest
@@ -72,6 +74,19 @@ function enrichDevotee(row, wishedMap, refDate, removedMap = new Map(), parcelMa
 function createDevoteeRoutes(db, { requireAuth, requireRole }) {
   const router = express.Router();
   router.use(requireAuth);
+
+  // Any write invalidates the cached devotee dataset so reads stay fresh.
+  router.use((req, res, next) => {
+    if (req.method !== 'GET') {
+      invalidateDevoteeCache();
+      res.on('finish', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          invalidateDevoteeCache();
+        }
+      });
+    }
+    next();
+  });
 
   async function getWishedSet(year) {
     const res = await db.query(
@@ -114,31 +129,12 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
 
   router.get('/', async (req, res, next) => {
     try {
-      const { search = '', month = '', sort = 'upcoming_birthday' } = req.query;
+      const { search = '', month = '', status = 'all', sort = 'upcoming_birthday' } = req.query;
       const refDate = getLocalToday();
       const year = refDate.getFullYear();
 
-      // Single round-trip: devotee rows plus their wish/parcel/removal state.
-      const result = await db.query(
-        `SELECT d.*,
-                w.wish_year       AS wish_year,
-                w.channel         AS wish_channel,
-                w.gift_status     AS wish_gift_status,
-                p.gift_status     AS parcel_gift_status,
-                COALESCE(r.categories, ARRAY[]::text[]) AS removed_categories
-           FROM devotee_data d
-           LEFT JOIN devotee_birthday_wishes w
-             ON w.devotee_id = d.id::text AND w.wish_year = $1
-           LEFT JOIN parcels p
-             ON p.devotee_id = d.id AND p.parcel_year = $1
-           LEFT JOIN LATERAL (
-             SELECT array_agg(rr.category) AS categories
-               FROM devotee_removals rr
-              WHERE rr.devotee_id = d.id
-           ) r ON TRUE
-          ORDER BY d.devotee_id ASC`,
-        [year]
-      );
+      // Cached single round-trip: devotee rows plus wish/parcel/removal state.
+      const result = { rows: await getDevoteeRows(db, year) };
 
       const wishedMap = new Map();
       const removedMap = new Map();
@@ -177,6 +173,10 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
       if (month && !Number.isNaN(Number(month))) {
         const m = Number(month);
         list = list.filter((d) => d.birth_month === m);
+      }
+
+      if (status === 'active' || status === 'inactive') {
+        list = list.filter((d) => (d.status || 'active') === status);
       }
 
       if (sort === 'upcoming_birthday') {
@@ -323,9 +323,13 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
   router.get('/export/csv', async (_req, res, next) => {
     try {
       const refDate = getLocalToday();
-      const wishedSet = await getWishedSet(refDate.getFullYear());
-      const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
-      const list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate));
+      const rows = await getDevoteeRows(db, refDate.getFullYear());
+      const wishedSet = new Map(
+        rows
+          .filter((r) => r.wish_year !== null && r.wish_year !== undefined)
+          .map((r) => [String(r.id), { channel: r.wish_channel, gift_status: r.wish_gift_status }])
+      );
+      const list = rows.map((r) => enrichDevotee(r, wishedSet, refDate));
 
       const headers = [
         'Devotee ID',

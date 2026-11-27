@@ -1,4 +1,5 @@
 const express = require('express');
+const { getDevoteeRows } = require('../devoteeCache');
 const { computeBirthdayInfo, getLocalToday } = require('../utils/birthday');
 
 const MONTH_NAMES = [
@@ -26,29 +27,30 @@ function createAnalyticsRoutes(db, { requireAuth }) {
       const currentYear = refDate.getFullYear();
       const currentMonth = refDate.getMonth() + 1;
 
-      const wishedRes = await db.query(
-        'SELECT devotee_id, wished_at, channel FROM devotee_birthday_wishes WHERE wish_year = $1',
-        [currentYear]
-      );
-      const wishedRows = wishedRes.rows;
-      const wishedMap = new Map(wishedRows.map((r) => [r.devotee_id, r]));
-
-      const devoteeRes = await db.query('SELECT * FROM devotee_data');
-      const rows = devoteeRes.rows;
+      const rows = await getDevoteeRows(db, currentYear);
 
       const enriched = rows.map((r) => {
-        const bday = computeBirthdayInfo(r.dob, refDate);
-        const wish = wishedMap.get(String(r.id));
+        const {
+          wish_year,
+          wish_wished_at,
+          wish_channel,
+          wish_gift_status,
+          parcel_gift_status,
+          removed_categories,
+          ...row
+        } = r;
+        const bday = computeBirthdayInfo(row.dob, refDate);
+        const wished = wish_year !== null && wish_year !== undefined;
         return {
-          ...r,
-          id: r.id,
-          devotee_id: r.devotee_id || `ISKCON_DGP_${String(r.id).padStart(3, '0')}`,
-          phone: r.contact_no ? String(r.contact_no) : '',
-          city: r.town_city || '',
-          spiritual_name: r.initiated_name || '',
+          ...row,
+          id: row.id,
+          devotee_id: row.devotee_id || `ISKCON_DGP_${String(row.id).padStart(3, '0')}`,
+          phone: row.contact_no ? String(row.contact_no) : '',
+          city: row.town_city || '',
+          spiritual_name: row.initiated_name || '',
           ...bday,
-          wished_this_year: Boolean(wish),
-          wished_at: wish ? wish.wished_at : null,
+          wished_this_year: wished,
+          wished_at: wished ? wish_wished_at : null,
         };
       });
 
@@ -126,7 +128,7 @@ function createAnalyticsRoutes(db, { requireAuth }) {
           upcoming7Count: upcoming7Days.length,
           upcoming30Count: upcoming30Days.length,
           thisMonthCount: thisMonthBirthdays.length,
-          wishedThisYearCount: wishedRows.length,
+          wishedThisYearCount: rows.filter((r) => r.wish_year !== null && r.wish_year !== undefined).length,
         },
         todayBirthdays,
         upcoming7Days,
@@ -148,25 +150,21 @@ function createAnalyticsRoutes(db, { requireAuth }) {
       const refDate = getLocalToday();
       const currentYear = refDate.getFullYear();
 
-      const devRes = await db.query('SELECT * FROM devotee_data');
-      const wishRes = await db
-        .query(
-          'SELECT devotee_id, channel FROM devotee_birthday_wishes WHERE wish_year = $1',
-          [currentYear]
-        )
-        .catch(() => ({ rows: [] }));
-      const parcelRes = await db
-        .query(
-          'SELECT gift_status FROM parcels WHERE parcel_year = $1',
-          [currentYear]
-        )
-        .catch(() => ({ rows: [] }));
-      const remRes = await db
-        .query('SELECT category FROM devotee_removals')
-        .catch(() => ({ rows: [] }));
-
-      const rows = devRes.rows;
+      const rows = await getDevoteeRows(db, currentYear);
       const total = rows.length;
+      const statsRes = await db
+        .query(
+          `SELECT
+             (SELECT COALESCE(json_agg(json_build_object('channel', channel)), '[]'::json)
+                FROM devotee_birthday_wishes WHERE wish_year = $1) AS wishes,
+             (SELECT COALESCE(json_agg(json_build_object('gift_status', gift_status)), '[]'::json)
+                FROM parcels WHERE parcel_year = $1) AS parcels,
+             (SELECT COALESCE(json_agg(json_build_object('category', category)), '[]'::json)
+                FROM devotee_removals) AS removals`,
+          [currentYear]
+        )
+        .catch(() => ({ rows: [{ wishes: [], parcels: [], removals: [] }] }));
+      const stats = statsRes.rows[0] || { wishes: [], parcels: [], removals: [] };
 
       const isFilled = (v) => {
         if (v === null || v === undefined) return false;
@@ -289,17 +287,22 @@ function createAnalyticsRoutes(db, { requireAuth }) {
       let packed = 0;
       let inTransit = 0;
       let delivered = 0;
-      for (const w of wishRes.rows) {
+      for (const w of stats.wishes || []) {
         if (w.channel !== 'GiftOnly') wishedThisYear += 1;
       }
-      for (const p of parcelRes.rows) {
+      for (const p of stats.parcels || []) {
         if (p.gift_status === 'packed') packed += 1;
         else if (p.gift_status === 'in_transit') inTransit += 1;
         else if (p.gift_status === 'delivered') delivered += 1;
       }
 
-      const removals = { birthday: 0, anniversary: 0, parcel: 0, total: remRes.rows.length };
-      for (const rem of remRes.rows) {
+      const removals = {
+        birthday: 0,
+        anniversary: 0,
+        parcel: 0,
+        total: (stats.removals || []).length,
+      };
+      for (const rem of stats.removals || []) {
         if (rem.category === 'birthday') removals.birthday += 1;
         else if (rem.category === 'anniversary') removals.anniversary += 1;
         else if (rem.category === 'parcel') removals.parcel += 1;

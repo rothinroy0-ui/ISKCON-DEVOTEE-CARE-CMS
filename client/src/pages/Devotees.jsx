@@ -26,33 +26,49 @@ export default function Devotees({ user, t }) {
   const { openImage } = useImagePreview();
   const confirm = useConfirm();
   const [devotees, setDevotees] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState('');
   const [month, setMonth] = useState('');
   const [status, setStatus] = useState('all');
   const [sort, setSort] = useState('upcoming_birthday');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [visibleCount, setVisibleCount] = useState(60);
 
   const canEdit = user?.role === 'admin' || user?.role === 'editor';
 
-  const loadDevotees = async () => {
-    setLoading(true);
+  const buildQuery = (limit, offset) => {
+    const params = new URLSearchParams({ search, month, status, sort });
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (offset) params.set('offset', String(offset));
+    return params.toString();
+  };
+
+  const loadDevotees = async ({ limit = 60, offset = 0, append = false } = {}) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const params = new URLSearchParams({ search, month, status, sort });
-      const data = await apiRequest(`/api/devotees?${params.toString()}`);
-      setDevotees(data.devotees || []);
+      const data = await apiRequest(`/api/devotees?${buildQuery(limit, offset)}`, {
+        cache: true,
+      });
+      const rows = data.devotees || [];
+      setTotal(data.total ?? rows.length);
+      setDevotees((prev) => (append ? [...prev, ...rows] : rows));
     } catch (err) {
       console.error(err);
+      if (!append) {
+        setDevotees([]);
+        setTotal(0);
+      }
     } finally {
-      setLoading(false);
+      if (append) setLoadingMore(false);
+      else setLoading(false);
     }
   };
 
   useEffect(() => {
-    setVisibleCount(60);
-    const timer = setTimeout(loadDevotees, 150);
+    const timer = setTimeout(() => loadDevotees({ limit: 60, offset: 0 }), 150);
     return () => clearTimeout(timer);
   }, [search, month, status, sort]);
 
@@ -70,7 +86,7 @@ export default function Devotees({ user, t }) {
       });
       toast.success('New devotee saved successfully!');
     }
-    await loadDevotees();
+    await loadDevotees({ limit: Math.max(60, devotees.length), offset: 0 });
   };
 
   const handleDelete = async (d) => {
@@ -84,7 +100,7 @@ export default function Devotees({ user, t }) {
     try {
       await apiRequest(`/api/devotees/${d.id}`, { method: 'DELETE' });
       toast.success(`${d.full_name} deleted.`);
-      await loadDevotees();
+      await loadDevotees({ limit: Math.max(60, devotees.length), offset: 0 });
     } catch (err) {
       toast.error(err.message);
     }
@@ -95,17 +111,24 @@ export default function Devotees({ user, t }) {
     window.open(`/api/devotees/export/csv?token=${encodeURIComponent(token)}`, '_blank');
   };
 
-  const handleExportPdf = () => {
-    if (devotees.length === 0) return;
-    const filters = [];
-    if (search.trim()) filters.push(`Search: "${search.trim()}"`);
-    if (month) filters.push(`Month: ${MONTHS[Number(month) - 1]}`);
-    if (status !== 'all') filters.push(`Status: ${status}`);
-    exportDevoteesPdf(devotees, {
-      subtitle: `ISKCON Durgapur · ${devotees.length} devotee${
-        devotees.length === 1 ? '' : 's'
-      }${filters.length ? ` · ${filters.join(' · ')}` : ''}`,
-    });
+  const handleExportPdf = async () => {
+    if (total === 0) return;
+    try {
+      const data = await apiRequest(`/api/devotees?${buildQuery(0, 0)}`, { cache: true });
+      const list = data.devotees || [];
+      if (list.length === 0) return;
+      const filters = [];
+      if (search.trim()) filters.push(`Search: "${search.trim()}"`);
+      if (month) filters.push(`Month: ${MONTHS[Number(month) - 1]}`);
+      if (status !== 'all') filters.push(`Status: ${status}`);
+      await exportDevoteesPdf(list, {
+        subtitle: `ISKCON Durgapur · ${list.length} devotee${
+          list.length === 1 ? '' : 's'
+        }${filters.length ? ` · ${filters.join(' · ')}` : ''}`,
+      });
+    } catch (err) {
+      toast.error(err.message || 'Failed to export PDF');
+    }
   };
 
   return (
@@ -211,11 +234,19 @@ export default function Devotees({ user, t }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
-                    Loading...
-                  </td>
-                </tr>
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="animate-pulse">
+                    <td className="px-4 py-4"><div className="h-4 w-6 rounded bg-slate-100" /></td>
+                    <td className="px-5 py-4"><div className="h-4 w-24 rounded bg-slate-100" /></td>
+                    <td className="px-5 py-4"><div className="h-4 w-40 rounded bg-slate-100" /></td>
+                    <td className="px-5 py-4"><div className="h-4 w-28 rounded bg-slate-100" /></td>
+                    <td className="px-5 py-4"><div className="h-4 w-24 rounded bg-slate-100" /></td>
+                    <td className="px-5 py-4"><div className="h-4 w-16 rounded bg-slate-100" /></td>
+                    {canEdit && (
+                      <td className="px-5 py-4"><div className="ml-auto h-4 w-16 rounded bg-slate-100" /></td>
+                    )}
+                  </tr>
+                ))
               ) : devotees.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
@@ -223,7 +254,7 @@ export default function Devotees({ user, t }) {
                   </td>
                 </tr>
               ) : (
-                devotees.slice(0, visibleCount).map((d, idx) => (
+                devotees.map((d, idx) => (
                   <tr key={d.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-4 font-mono text-xs font-semibold text-slate-500">
                       {idx + 1}
@@ -338,21 +369,27 @@ export default function Devotees({ user, t }) {
             </tbody>
           </table>
         </div>
-        {devotees.length > visibleCount && (
+        {devotees.length < total && (
           <div className="flex items-center justify-center gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3">
             <button
               type="button"
-              onClick={() => setVisibleCount((prev) => prev + 60)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() =>
+                loadDevotees({ limit: 60, offset: devotees.length, append: true })
+              }
+              disabled={loadingMore}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Show 60 More ({devotees.length - visibleCount} remaining)
+              {loadingMore
+                ? 'Loading...'
+                : `Show 60 More (${total - devotees.length} remaining)`}
             </button>
             <button
               type="button"
-              onClick={() => setVisibleCount(devotees.length)}
-              className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              onClick={() => loadDevotees({ limit: 0, offset: 0 })}
+              disabled={loadingMore}
+              className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Show All ({devotees.length})
+              Show All ({total})
             </button>
           </div>
         )}

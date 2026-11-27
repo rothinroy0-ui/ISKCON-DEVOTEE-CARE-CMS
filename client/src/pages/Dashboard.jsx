@@ -19,7 +19,7 @@ export default function Dashboard({ user, t, onNavigate }) {
 
   const loadAnalytics = async () => {
     try {
-      const res = await apiRequest('/api/analytics/birthdays');
+      const res = await apiRequest('/api/analytics/birthdays', { cache: true });
       setData(res);
     } catch (err) {
       console.error(err);

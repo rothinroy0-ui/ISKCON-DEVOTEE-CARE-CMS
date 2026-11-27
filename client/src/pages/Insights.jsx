@@ -153,8 +153,8 @@ export default function Insights() {
     setError('');
     try {
       const [ins, dev] = await Promise.all([
-        apiRequest('/api/analytics/insights'),
-        apiRequest('/api/devotees?sort=name'),
+        apiRequest('/api/analytics/insights', { cache: true }),
+        apiRequest('/api/devotees?sort=name', { cache: true }),
       ]);
       setData(ins);
       setAllDevotees(dev.devotees || []);

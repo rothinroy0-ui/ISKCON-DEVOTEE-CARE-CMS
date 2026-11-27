@@ -19,11 +19,25 @@ import { useImagePreview } from '../components/ImagePreviewModal';
 import { useConfirm } from '../components/ConfirmModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
 export default function Birthdays({ user, t }) {
   const toast = useToast();
   const { openImage } = useImagePreview();
   const confirm = useConfirm();
-  const [analytics, setAnalytics] = useState(null);
   const [allDevotees, setAllDevotees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [exactDate, setExactDate] = useState('');
@@ -42,11 +56,9 @@ export default function Birthdays({ user, t }) {
     setLoading(true);
     setError('');
     try {
-      const [ana, dev] = await Promise.all([
-        apiRequest('/api/analytics/birthdays'),
-        apiRequest('/api/devotees?sort=upcoming_birthday'),
-      ]);
-      setAnalytics(ana);
+      const dev = await apiRequest('/api/devotees?sort=upcoming_birthday', {
+        cache: true,
+      });
       setAllDevotees(
         (dev.devotees || []).filter(
           (d) => !d.removed_categories?.includes('birthday')
@@ -142,6 +154,20 @@ export default function Birthdays({ user, t }) {
     return list;
   }, [allDevotees, selectedMonth, exactDate, selectedCities, search]);
 
+  const monthlyCounts = useMemo(() => {
+    const counts = new Array(12).fill(0);
+    for (const d of allDevotees) {
+      const m = Number(d.birth_month);
+      if (m >= 1 && m <= 12) counts[m - 1] += 1;
+    }
+    return counts.map((count, idx) => ({
+      month: idx + 1,
+      name: MONTH_NAMES[idx],
+      shortName: MONTH_NAMES[idx].slice(0, 3),
+      count,
+    }));
+  }, [allDevotees]);
+
   useEffect(() => {
     setVisibleCount(60);
   }, [selectedMonth, exactDate, selectedCities, search]);
@@ -208,7 +234,7 @@ export default function Birthdays({ user, t }) {
     }
   };
 
-  if (loading && !analytics) {
+  if (loading) {
     return (
       <div className="py-12 text-center text-sm text-slate-500">
         Loading birthday analytics...
@@ -216,7 +242,7 @@ export default function Birthdays({ user, t }) {
     );
   }
 
-  if (error && !analytics && allDevotees.length === 0) {
+  if (error && allDevotees.length === 0) {
     return (
       <div className="mx-auto my-8 max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
         <p className="text-sm font-semibold text-rose-800">{error}</p>
@@ -231,7 +257,6 @@ export default function Birthdays({ user, t }) {
     );
   }
 
-  const monthlyCounts = analytics?.monthlyCounts || [];
   const maxMonthCount = Math.max(1, ...monthlyCounts.map((m) => m.count));
 
   const activeMonthObj =

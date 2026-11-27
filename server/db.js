@@ -24,9 +24,13 @@ function createPool() {
     connectionString,
     ssl: useSsl ? { rejectUnauthorized: false } : false,
     max: isServerless ? 1 : 2,
-    idleTimeoutMillis: 3000,
-    connectionTimeoutMillis: 10000,
-    allowExitOnIdle: true,
+    // Serverless functions are short-lived, so release connections quickly.
+    // Long-running servers benefit from reusing warm connections instead of
+    // paying a fresh TLS handshake to the remote database on every request.
+    idleTimeoutMillis: isServerless ? 3000 : 30000,
+    connectionTimeoutMillis: 15000,
+    allowExitOnIdle: isServerless,
+    keepAlive: true,
   });
 }
 

@@ -55,7 +55,7 @@ export default function Anniversaries({ user }) {
     setLoading(true);
     setError('');
     try {
-      const dev = await apiRequest('/api/devotees');
+      const dev = await apiRequest('/api/devotees', { cache: true });
       const cleanName = (val) =>
         String(val || '')
           .toLowerCase()
