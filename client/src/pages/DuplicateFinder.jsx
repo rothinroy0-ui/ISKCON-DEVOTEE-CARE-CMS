@@ -4,37 +4,114 @@ import {
   Search,
   Trash2,
   Phone,
-  Mail,
   Cake,
   MapPin,
   RefreshCw,
   AlertTriangle,
+  User,
+  BadgeCheck,
+  Users,
+  Home,
+  Calendar,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
 import { useImagePreview } from '../components/ImagePreviewModal';
 
-const MATCH_MODES = [
+const CATEGORIES = [
   {
-    key: 'phone',
-    label: 'Same Phone / WhatsApp',
-    desc: 'Matches last 10 digits of contact or WhatsApp number',
+    num: '01',
+    key: 'personal',
+    label: 'Personal Information',
+    recommended: true,
+    icon: User,
+    desc: 'Full Name, Initiated Name & Blood Group',
+    subModes: [
+      { key: 'full_name', label: 'Same Full Name' },
+      { key: 'initiated_name', label: 'Same Initiated Name' },
+      { key: 'name_blood', label: 'Full Name + Blood Group' },
+    ],
   },
   {
-    key: 'name',
-    label: 'Same Full Name',
-    desc: 'Case-insensitive match on full name',
+    num: '02',
+    key: 'contact',
+    label: 'Contact Information',
+    recommended: true,
+    icon: Phone,
+    desc: 'Contact No & WhatsApp No (10-digit)',
+    subModes: [
+      { key: 'any_phone', label: 'Phone or WhatsApp' },
+      { key: 'contact_only', label: 'Contact No Only' },
+      { key: 'whatsapp_only', label: 'WhatsApp No Only' },
+    ],
   },
   {
-    key: 'name_dob',
-    label: 'Same Name + DOB',
-    desc: 'Strict match on both full name and date of birth',
+    num: '03',
+    key: 'identity',
+    label: 'Identity Information',
+    recommended: false,
+    icon: BadgeCheck,
+    desc: 'Devotee ID, Spiritual Master & Teacher',
+    subModes: [
+      { key: 'devotee_id', label: 'Same Devotee ID' },
+      { key: 'init_guru', label: 'Initiated Name + Guru' },
+      { key: 'name_teacher', label: 'Full Name + Teacher' },
+    ],
   },
   {
-    key: 'email',
-    label: 'Same Email',
-    desc: 'Case-insensitive match on email address',
+    num: '04',
+    key: 'family',
+    label: 'Family Information',
+    recommended: false,
+    icon: Users,
+    desc: "Father's Name & Spouse's Name",
+    subModes: [
+      { key: 'name_father', label: "Full Name + Father's Name" },
+      { key: 'father_only', label: "Same Father's Name" },
+      { key: 'spouse_only', label: "Same Spouse's Name" },
+    ],
+  },
+  {
+    num: '05',
+    key: 'address',
+    label: 'Address Information',
+    recommended: false,
+    icon: Home,
+    desc: 'Full Address & Town / City',
+    subModes: [
+      { key: 'full_address', label: 'Same Full Address' },
+      { key: 'name_city', label: 'Full Name + City' },
+      { key: 'address_city', label: 'Address + City' },
+    ],
+  },
+  {
+    num: '06',
+    key: 'dates',
+    label: 'Date-Based Duplicates',
+    recommended: false,
+    icon: Calendar,
+    desc: 'DOB, Anniversary & Initiation Dates',
+    subModes: [
+      { key: 'name_dob', label: 'Full Name + DOB' },
+      { key: 'dob_only', label: 'Same DOB Only' },
+      { key: 'anniversary', label: 'Same Anniversary Date' },
+      { key: 'initiation_date', label: 'Same 1st Initiation Date' },
+    ],
+  },
+  {
+    num: '07',
+    key: 'import',
+    label: 'Import & Record Duplicates',
+    recommended: false,
+    icon: FileSpreadsheet,
+    desc: 'Multi-field exact import duplicates',
+    subModes: [
+      { key: 'name_phone_dob', label: 'Name + Phone + DOB' },
+      { key: 'name_phone', label: 'Name + Phone' },
+      { key: 'devotee_id_exact', label: 'Duplicate Devotee ID' },
+    ],
   },
 ];
 
@@ -51,13 +128,113 @@ function normalizeText(raw) {
     .toLowerCase();
 }
 
+function getMatchKeys(d, subMode) {
+  const fullName = normalizeText(d.full_name);
+  const initName = normalizeText(d.initiated_name || d.spiritual_name);
+  const contact = normalizePhone10(d.contact_no || d.phone);
+  const whatsapp = normalizePhone10(d.whatsapp_no);
+  const devoteeId = normalizeText(d.devotee_id);
+  const guru = normalizeText(d.spiritual_master);
+  const teacher = normalizeText(d.teacher_name);
+  const father = normalizeText(d.fathers_name);
+  const spouse = normalizeText(d.spouses_name);
+  const address = normalizeText(d.full_address);
+  const city = normalizeText(d.town_city || d.city);
+  const blood = normalizeText(d.blood_group);
+  const dob = String(d.dob || '').trim();
+  const anniv = String(d.anniversary_date || d.marriage_anniversary || '').trim();
+  const initDate = String(d.first_initiation_date || '').trim();
+
+  switch (subMode) {
+    case 'full_name':
+      return fullName ? [{ key: fullName, label: d.full_name.trim() }] : [];
+    case 'initiated_name':
+      return initName
+        ? [{ key: initName, label: (d.initiated_name || d.spiritual_name).trim() }]
+        : [];
+    case 'name_blood':
+      return fullName && blood
+        ? [{ key: `${fullName}__${blood}`, label: `${d.full_name.trim()} (${d.blood_group})` }]
+        : [];
+    case 'any_phone': {
+      const seen = new Set();
+      const out = [];
+      [contact, whatsapp].forEach((p) => {
+        if (p && !seen.has(p)) {
+          seen.add(p);
+          out.push({ key: p, label: p });
+        }
+      });
+      return out;
+    }
+    case 'contact_only':
+      return contact ? [{ key: contact, label: contact }] : [];
+    case 'whatsapp_only':
+      return whatsapp ? [{ key: whatsapp, label: whatsapp }] : [];
+    case 'devotee_id':
+    case 'devotee_id_exact':
+      return devoteeId ? [{ key: devoteeId, label: d.devotee_id.trim() }] : [];
+    case 'init_guru':
+      return initName && guru
+        ? [{ key: `${initName}__${guru}`, label: `${initName} · ${d.spiritual_master}` }]
+        : [];
+    case 'name_teacher':
+      return fullName && teacher
+        ? [{ key: `${fullName}__${teacher}`, label: `${d.full_name.trim()} · ${d.teacher_name}` }]
+        : [];
+    case 'name_father':
+      return fullName && father
+        ? [{ key: `${fullName}__${father}`, label: `${d.full_name.trim()} (S/O ${d.fathers_name})` }]
+        : [];
+    case 'father_only':
+      return father ? [{ key: father, label: `Father: ${d.fathers_name.trim()}` }] : [];
+    case 'spouse_only':
+      return spouse ? [{ key: spouse, label: `Spouse: ${d.spouses_name.trim()}` }] : [];
+    case 'full_address':
+      return address ? [{ key: address, label: d.full_address.trim() }] : [];
+    case 'name_city':
+      return fullName && city
+        ? [{ key: `${fullName}__${city}`, label: `${d.full_name.trim()} · ${d.town_city || d.city}` }]
+        : [];
+    case 'address_city':
+      return address && city
+        ? [{ key: `${address}__${city}`, label: `${d.full_address.trim()}, ${d.town_city || d.city}` }]
+        : [];
+    case 'name_dob':
+      return fullName && dob
+        ? [{ key: `${fullName}__${dob}`, label: `${d.full_name.trim()} (${dob})` }]
+        : [];
+    case 'dob_only':
+      return dob ? [{ key: dob, label: `DOB: ${dob}` }] : [];
+    case 'anniversary':
+      return anniv ? [{ key: anniv, label: `Anniversary: ${anniv}` }] : [];
+    case 'initiation_date':
+      return initDate ? [{ key: initDate, label: `1st Initiation: ${initDate}` }] : [];
+    case 'name_phone_dob': {
+      const p = contact || whatsapp;
+      return fullName && p && dob
+        ? [{ key: `${fullName}__${p}__${dob}`, label: `${d.full_name.trim()} · ${p} · ${dob}` }]
+        : [];
+    }
+    case 'name_phone': {
+      const p = contact || whatsapp;
+      return fullName && p
+        ? [{ key: `${fullName}__${p}`, label: `${d.full_name.trim()} · ${p}` }]
+        : [];
+    }
+    default:
+      return [];
+  }
+}
+
 export default function DuplicateFinder() {
   const toast = useToast();
   const confirm = useConfirm();
   const { openImage } = useImagePreview();
   const [devotees, setDevotees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState('phone');
+  const [categoryKey, setCategoryKey] = useState('personal');
+  const [subMode, setSubMode] = useState('full_name');
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -79,64 +256,42 @@ export default function DuplicateFinder() {
     loadDevotees();
   }, []);
 
+  const currentCategory = useMemo(
+    () => CATEGORIES.find((c) => c.key === categoryKey) || CATEGORIES[0],
+    [categoryKey]
+  );
+
+  const handleSelectCategory = (cat) => {
+    setCategoryKey(cat.key);
+    setSubMode(cat.subModes[0].key);
+    setSelectedIds(new Set());
+  };
+
   const duplicateGroups = useMemo(() => {
     const map = new Map();
 
     devotees.forEach((d) => {
-      if (mode === 'phone') {
-        const keys = new Set([
-          normalizePhone10(d.contact_no || d.phone),
-          normalizePhone10(d.whatsapp_no),
-        ]);
-        keys.forEach((k) => {
-          if (!k) return;
-          if (!map.has(k)) map.set(k, []);
-          map.get(k).push(d);
-        });
-      } else if (mode === 'name') {
-        const name = normalizeText(d.full_name);
-        if (!name) return;
-        if (!map.has(name)) map.set(name, []);
-        map.get(name).push(d);
-      } else if (mode === 'name_dob') {
-        const name = normalizeText(d.full_name);
-        const dob = String(d.dob || '').trim();
-        if (!name || !dob) return;
-        const key = `${name}__${dob}`;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(d);
-      } else if (mode === 'email') {
-        const email = normalizeText(d.email);
-        if (!email) return;
-        if (!map.has(email)) map.set(email, []);
-        map.get(email).push(d);
-      }
+      const entries = getMatchKeys(d, subMode);
+      entries.forEach(({ key, label }) => {
+        if (!map.has(key)) map.set(key, { label, list: [] });
+        map.get(key).list.push(d);
+      });
     });
 
     const groups = [];
-    map.forEach((list, key) => {
-      // Deduplicate same devotee id if both contact_no and whatsapp_no matched
+    map.forEach(({ label, list }, key) => {
       const uniqueById = Array.from(
         new Map(list.map((item) => [item.id, item])).values()
       );
       if (uniqueById.length > 1) {
         uniqueById.sort((a, b) => a.id - b.id);
-        let label = key;
-        if (mode === 'name_dob') {
-          const [n, dob] = key.split('__');
-          label = `${n} (${dob})`;
-        }
-        groups.push({
-          key,
-          label,
-          items: uniqueById,
-        });
+        groups.push({ key, label, items: uniqueById });
       }
     });
 
     groups.sort((a, b) => b.items.length - a.items.length);
     return groups;
-  }, [devotees, mode]);
+  }, [devotees, subMode]);
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -151,7 +306,6 @@ export default function DuplicateFinder() {
             d.devotee_id,
             d.contact_no,
             d.whatsapp_no,
-            d.email,
             d.town_city,
           ]
             .filter(Boolean)
@@ -270,56 +424,102 @@ export default function DuplicateFinder() {
         </div>
       </div>
 
-      {/* Match Mode Selector */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {MATCH_MODES.map((m) => {
-          const active = mode === m.key;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => {
-                setMode(m.key);
-                setSelectedIds(new Set());
-              }}
-              className={`rounded-2xl bg-white p-4 text-left shadow-sm ring-1 transition ${
-                active
-                  ? 'bg-indigo-50/70 ring-2 ring-indigo-500'
-                  : 'ring-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-2 text-xs font-bold text-indigo-700">
-                <CopyCheck className="h-4 w-4" />
-                <span>{m.label}</span>
-              </div>
-              <p className="mt-1.5 text-xs text-slate-600">{m.desc}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Search & Refresh */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter duplicate groups by name, phone, Devotee ID, or city..."
-            className="w-full rounded-xl border border-slate-200 py-2 pr-3 pl-9 text-sm focus:border-indigo-500 focus:outline-none"
-          />
+      {/* 01 - 07 Duplicate Finder Categories */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Duplicate Finder Categories
+          </h3>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+            01 &amp; 02 Recommended
+          </span>
         </div>
 
-        <button
-          type="button"
-          onClick={loadDevotees}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Rescan
-        </button>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            const active = categoryKey === cat.key;
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => handleSelectCategory(cat)}
+                className={`rounded-2xl bg-white p-4 text-left shadow-sm ring-1 transition ${
+                  active
+                    ? 'bg-indigo-50/70 ring-2 ring-indigo-500'
+                    : 'ring-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700">
+                    <span className="rounded-md bg-indigo-100 px-1.5 py-0.5 font-mono text-[11px] text-indigo-800">
+                      {cat.num}
+                    </span>
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  {cat.recommended && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-sm font-bold text-slate-900">
+                  {cat.label}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500">{cat.desc}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sub-criteria & Search */}
+      <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-bold text-slate-500">
+            {currentCategory.num} · {currentCategory.label}:
+          </span>
+          {currentCategory.subModes.map((sm) => (
+            <button
+              key={sm.key}
+              type="button"
+              onClick={() => {
+                setSubMode(sm.key);
+                setSelectedIds(new Set());
+              }}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                subMode === sm.key
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {sm.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter duplicate groups by name, phone, Devotee ID, or city..."
+              className="w-full rounded-xl border border-slate-200 py-2 pr-3 pl-9 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={loadDevotees}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Rescan
+          </button>
+        </div>
       </div>
 
       {/* Bulk Action Bar */}
@@ -367,10 +567,10 @@ export default function DuplicateFinder() {
           <CopyCheck className="mx-auto h-8 w-8 text-emerald-500" />
           <p className="mt-2 text-sm font-semibold text-slate-800">
             No duplicates found for &ldquo;
-            {MATCH_MODES.find((m) => m.key === mode)?.label}&rdquo;
+            {currentCategory.subModes.find((s) => s.key === subMode)?.label}&rdquo;
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Try switching match modes above to check by Name, Phone, DOB, or Email.
+            Try switching categories (01–07) or sub-criteria above.
           </p>
         </div>
       ) : (
@@ -454,11 +654,8 @@ export default function DuplicateFinder() {
                               {d.contact_no || d.whatsapp_no || d.phone}
                             </span>
                           )}
-                          {d.email && (
-                            <span className="inline-flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {d.email}
-                            </span>
+                          {d.fathers_name && (
+                            <span>S/O {d.fathers_name}</span>
                           )}
                           {d.dob && (
                             <span className="inline-flex items-center gap-1">
