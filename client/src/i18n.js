@@ -67,6 +67,8 @@ export const translations = {
     navBirthdays: 'Birthdays',
     navAnniversaries: 'Anniversaries',
     navParcels: 'Parcels',
+    navParcelCommunication: 'Parcel Communication',
+    navDevoteeGreetings: 'Devotee Greetings',
     navRemovals: 'Removal Record',
     navApplications: 'Applications',
     navMarquee: 'Marquee Banner',

@@ -5,6 +5,7 @@ export const PERMISSION_OPTIONS = [
   { key: 'birthdays', label: 'Birthdays', desc: 'View Birthdays tab & export Excel/PDF' },
   { key: 'anniversaries', label: 'Anniversaries', desc: 'View Anniversaries tab & export Excel/PDF' },
   { key: 'parcels', label: 'Parcels (View & Update)', desc: 'View Parcels tab & update parcel status' },
+  { key: 'communication', label: 'Communication Centre', desc: 'Send Parcel Communication & Devotee Greetings' },
   { key: 'removals', label: 'Removal Record', desc: 'View & restore removed records' },
   { key: 'applications', label: 'Applications (Approve / Reject)', desc: 'Review & approve pending registrations' },
   { key: 'bulk_fix', label: 'Bulk Correction', desc: 'Access one-click bulk spelling correction tool' },
@@ -21,6 +22,7 @@ export const DEFAULT_PERMISSIONS_BY_ROLE = {
     'birthdays',
     'anniversaries',
     'parcels',
+    'communication',
     'removals',
   ],
   viewer: [
@@ -29,6 +31,7 @@ export const DEFAULT_PERMISSIONS_BY_ROLE = {
     'birthdays',
     'anniversaries',
     'parcels',
+    'communication',
     'removals',
   ],
 };

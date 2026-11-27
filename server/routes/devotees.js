@@ -1224,6 +1224,35 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
     }
   });
 
+  router.post('/communicate', async (req, res, next) => {
+    try {
+      const { devoteeId, phone, message, category, subType } = req.body || {};
+      const cleanMsg = String(message || '').trim();
+      if (!cleanMsg) {
+        return res.status(400).json({ error: 'Message text is required' });
+      }
+      const whatsappNotification = await sendWhatsAppNotification(phone, cleanMsg);
+      if (!whatsappNotification) {
+        return res.status(400).json({ error: 'Valid phone or WhatsApp number is required' });
+      }
+
+      if (devoteeId) {
+        await logAudit(
+          db,
+          req.user,
+          'COMMUNICATION_WHATSAPP',
+          'devotee_data',
+          Number(devoteeId) || null,
+          `Sent ${category || 'general'}${subType ? ` (${subType})` : ''} WhatsApp communication`
+        );
+      }
+
+      res.json({ ok: true, whatsappNotification });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }
 

@@ -16,6 +16,9 @@ import {
   FolderKanban,
   Database,
   Megaphone,
+  MessageSquareText,
+  Truck,
+  Sparkles,
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
 
@@ -97,14 +100,19 @@ export default function Layout({
   children,
 }) {
   const [dirOpen, setDirOpen] = useState(false);
+  const [commOpen, setCommOpen] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
   const dirRef = useRef(null);
+  const commRef = useRef(null);
   const dataRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dirRef.current && !dirRef.current.contains(e.target)) {
         setDirOpen(false);
+      }
+      if (commRef.current && !commRef.current.contains(e.target)) {
+        setCommOpen(false);
       }
       if (dataRef.current && !dataRef.current.contains(e.target)) {
         setDataOpen(false);
@@ -122,6 +130,21 @@ export default function Layout({
     { id: 'applications', label: t.navApplications, icon: ClipboardCheck, perm: 'applications' },
   ].filter((item) => hasPermission(user, item.perm));
 
+  const commItems = [
+    {
+      id: 'parcel-communication',
+      label: t.navParcelCommunication || 'Parcel Communication',
+      icon: Truck,
+      perm: 'communication',
+    },
+    {
+      id: 'devotee-greetings',
+      label: t.navDevoteeGreetings || 'Devotee Greetings',
+      icon: Sparkles,
+      perm: 'communication',
+    },
+  ].filter((item) => hasPermission(user, item.perm));
+
   const dataItems = [
     { id: 'recycle-bin', label: t.navRecycleBin, icon: Recycle, perm: 'devotees_edit' },
     { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
@@ -137,7 +160,12 @@ export default function Layout({
 
   const standalone = (id) => standaloneItems.find((item) => item.id === id);
 
-  const allAllowedItems = [...standaloneItems, ...directoryItems, ...dataItems];
+  const allAllowedItems = [
+    ...standaloneItems,
+    ...directoryItems,
+    ...commItems,
+    ...dataItems,
+  ];
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
@@ -148,6 +176,7 @@ export default function Layout({
         type="button"
         onClick={() => {
           setDirOpen(false);
+          setCommOpen(false);
           setDataOpen(false);
           onNavigate(item.id);
         }}
@@ -222,6 +251,17 @@ export default function Layout({
           />
 
           {standalone('parcels') && renderNavItem(standalone('parcels'))}
+
+          <NavGroup
+            label="Communication Centre"
+            icon={MessageSquareText}
+            items={commItems}
+            activePage={activePage}
+            onNavigate={onNavigate}
+            open={commOpen}
+            setOpen={setCommOpen}
+            groupRef={commRef}
+          />
 
           <NavGroup
             label="Data Management"
