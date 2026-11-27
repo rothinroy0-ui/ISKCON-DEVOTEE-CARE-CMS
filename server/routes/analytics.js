@@ -143,6 +143,200 @@ function createAnalyticsRoutes(db, { requireAuth }) {
     }
   });
 
+  router.get('/insights', async (_req, res, next) => {
+    try {
+      const refDate = getLocalToday();
+      const currentYear = refDate.getFullYear();
+
+      const [devRes, wishRes, remRes] = await Promise.all([
+        db.query('SELECT * FROM devotee_data'),
+        db.query(
+          'SELECT devotee_id, channel, gift_status FROM devotee_birthday_wishes WHERE wish_year = $1',
+          [currentYear]
+        ),
+        db.query('SELECT category FROM devotee_removals'),
+      ]);
+
+      const rows = devRes.rows;
+      const total = rows.length;
+
+      const isFilled = (v) => {
+        if (v === null || v === undefined) return false;
+        const s = String(v).trim();
+        return s !== '' && !['null', 'none', 'na', 'n/a', '-'].includes(s.toLowerCase());
+      };
+
+      const columnDefs = [
+        { key: 'sl_no', label: 'SL NO' },
+        { key: 'devotee_id', label: 'Devotee ID' },
+        { key: 'full_name', label: 'Full Name' },
+        { key: 'fathers_name', label: "Father's Name" },
+        { key: 'spouses_name', label: "Spouse's Name" },
+        { key: 'dob', label: 'Date of Birth' },
+        { key: 'gender', label: 'Gender' },
+        { key: 'contact_no', label: 'Contact No' },
+        { key: 'whatsapp_no', label: 'WhatsApp No' },
+        { key: 'blood_group', label: 'Blood Group' },
+        { key: 'town_city', label: 'Town / City' },
+        { key: 'full_address', label: 'Full Address' },
+        { key: 'teacher_name', label: 'Teacher / Counselor' },
+        { key: 'spiritual_master', label: 'Spiritual Master' },
+        { key: 'initiated_name', label: 'Initiated Name' },
+        { key: 'first_initiation_date', label: '1st Initiation Date' },
+        { key: 'second_initiation_date', label: '2nd Initiation Date' },
+        { key: 'anniversary_date', label: 'Anniversary Date' },
+        { key: 'upload_your_passport_size_photo', label: 'Passport Photo' },
+      ];
+
+      const completeness = columnDefs.map((col) => {
+        const filled = rows.reduce(
+          (acc, r) => (isFilled(r[col.key]) ? acc + 1 : acc),
+          0
+        );
+        return {
+          key: col.key,
+          label: col.label,
+          filled,
+          missing: total - filled,
+          pct: total > 0 ? Math.round((filled / total) * 100) : 0,
+        };
+      });
+
+      const groupBy = (getter) => {
+        const map = new Map();
+        for (const r of rows) {
+          const raw = getter(r);
+          const label = isFilled(raw) ? String(raw).trim() : 'Not Specified';
+          map.set(label, (map.get(label) || 0) + 1);
+        }
+        return Array.from(map.entries())
+          .map(([label, count]) => ({
+            label,
+            count,
+            pct: total > 0 ? Math.round((count / total) * 100) : 0,
+          }))
+          .sort((a, b) => b.count - a.count);
+      };
+
+      const gender = groupBy((r) => r.gender);
+      const bloodGroup = groupBy((r) =>
+        isFilled(r.blood_group) ? String(r.blood_group).trim().toUpperCase() : ''
+      );
+      const townCity = groupBy((r) => r.town_city);
+      const teacherName = groupBy((r) => r.teacher_name);
+      const spiritualMaster = groupBy((r) => r.spiritual_master);
+
+      const ageBuckets = {
+        'Under 18': 0,
+        '18 – 25': 0,
+        '26 – 40': 0,
+        '41 – 60': 0,
+        '60+': 0,
+        Unknown: 0,
+      };
+      const birthMonths = MONTH_NAMES.map((name, idx) => ({
+        month: idx + 1,
+        name,
+        shortName: name.slice(0, 3),
+        count: 0,
+      }));
+      const anniversaryMonths = MONTH_NAMES.map((name, idx) => ({
+        month: idx + 1,
+        name,
+        shortName: name.slice(0, 3),
+        count: 0,
+      }));
+
+      let initiatedNameCount = 0;
+      let firstInitiationCount = 0;
+      let secondInitiationCount = 0;
+      let anniversaryCount = 0;
+
+      for (const r of rows) {
+        if (isFilled(r.initiated_name)) initiatedNameCount += 1;
+        if (isFilled(r.first_initiation_date)) firstInitiationCount += 1;
+        if (isFilled(r.second_initiation_date)) secondInitiationCount += 1;
+        if (isFilled(r.anniversary_date)) anniversaryCount += 1;
+
+        const b = computeBirthdayInfo(r.dob, refDate);
+        if (b.birth_month) birthMonths[b.birth_month - 1].count += 1;
+        if (b.age === null || b.age < 0) ageBuckets.Unknown += 1;
+        else if (b.age < 18) ageBuckets['Under 18'] += 1;
+        else if (b.age <= 25) ageBuckets['18 – 25'] += 1;
+        else if (b.age <= 40) ageBuckets['26 – 40'] += 1;
+        else if (b.age <= 60) ageBuckets['41 – 60'] += 1;
+        else ageBuckets['60+'] += 1;
+
+        const a = computeBirthdayInfo(r.anniversary_date, refDate);
+        if (a.birth_month) anniversaryMonths[a.birth_month - 1].count += 1;
+      }
+
+      const ageGroups = Object.entries(ageBuckets).map(([label, count]) => ({
+        label,
+        count,
+        pct: total > 0 ? Math.round((count / total) * 100) : 0,
+      }));
+
+      let wishedThisYear = 0;
+      let packed = 0;
+      let inTransit = 0;
+      let delivered = 0;
+      for (const w of wishRes.rows) {
+        if (w.channel !== 'GiftOnly') wishedThisYear += 1;
+        if (w.gift_status === 'packed') packed += 1;
+        else if (w.gift_status === 'in_transit') inTransit += 1;
+        else if (w.gift_status === 'delivered') delivered += 1;
+      }
+
+      const removals = { birthday: 0, anniversary: 0, parcel: 0, total: remRes.rows.length };
+      for (const rem of remRes.rows) {
+        if (rem.category === 'birthday') removals.birthday += 1;
+        else if (rem.category === 'anniversary') removals.anniversary += 1;
+        else if (rem.category === 'parcel') removals.parcel += 1;
+      }
+
+      const avgCompleteness =
+        completeness.length > 0
+          ? Math.round(
+              completeness.reduce((acc, c) => acc + c.pct, 0) / completeness.length
+            )
+          : 0;
+
+      res.json({
+        totalDevotees: total,
+        avgCompleteness,
+        completeness,
+        initiation: {
+          initiatedNameCount,
+          uninitiatedCount: total - initiatedNameCount,
+          firstInitiationCount,
+          secondInitiationCount,
+          anniversaryCount,
+        },
+        breakdowns: {
+          gender,
+          bloodGroup,
+          townCity,
+          teacherName,
+          spiritualMaster,
+          ageGroups,
+          birthMonths,
+          anniversaryMonths,
+        },
+        giftsAndWishes: {
+          wishedThisYear,
+          packed,
+          inTransit,
+          delivered,
+          none: Math.max(0, total - packed - inTransit - delivered),
+        },
+        removals,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }
 

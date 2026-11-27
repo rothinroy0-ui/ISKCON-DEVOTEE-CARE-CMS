@@ -12,6 +12,7 @@ const Birthdays = lazy(() => import('./pages/Birthdays'));
 const Anniversaries = lazy(() => import('./pages/Anniversaries'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const Removals = lazy(() => import('./pages/Removals'));
+const Insights = lazy(() => import('./pages/Insights'));
 const Users = lazy(() => import('./pages/Users'));
 
 class PageErrorBoundary extends React.Component {
@@ -124,6 +125,7 @@ export default function App() {
               {activePage === 'anniversaries' && <Anniversaries user={user} />}
               {activePage === 'parcels' && <Parcels user={user} />}
               {activePage === 'removals' && <Removals user={user} />}
+              {activePage === 'insights' && <Insights />}
               {activePage === 'users' && user.role === 'admin' && (
                 <Users currentUser={user} t={t} />
               )}

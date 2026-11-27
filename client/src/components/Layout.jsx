@@ -6,6 +6,7 @@ import {
   Heart,
   Package,
   ArchiveX,
+  BarChart3,
   ShieldCheck,
   LogOut,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ export default function Layout({
     { id: 'anniversaries', label: t.navAnniversaries, icon: Heart },
     { id: 'parcels', label: t.navParcels, icon: Package },
     { id: 'removals', label: t.navRemovals, icon: ArchiveX },
+    { id: 'insights', label: t.navInsights, icon: BarChart3 },
   ];
 
   if (user?.role === 'admin') {
