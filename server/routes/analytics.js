@@ -355,6 +355,19 @@ function createAnalyticsRoutes(db, { requireAuth, requirePermission }) {
     }
   });
 
+  router.get('/activity-logs', async (req, res, next) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 200, 500);
+      const logsRes = await db.query(
+        'SELECT id, user_name, action, entity_type, details, created_at FROM audit_logs ORDER BY id DESC LIMIT $1',
+        [limit]
+      );
+      res.json({ logs: logsRes.rows });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }
 

@@ -77,6 +77,7 @@ export const translations = {
     navBulkFix: 'Bulk Correction',
     navDuplicateFinder: 'Duplicate Devotee Finder',
     navInsights: 'Insights',
+    navRecentActivity: 'Recent Activity Log',
     navUsers: 'User Management',
     devoteeId: 'Devotee ID',
     logout: 'Logout',

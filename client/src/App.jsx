@@ -23,6 +23,7 @@ const RecycleBin = lazy(() => import('./pages/RecycleBin'));
 const BulkCorrection = lazy(() => import('./pages/BulkCorrection'));
 const DuplicateFinder = lazy(() => import('./pages/DuplicateFinder'));
 const Insights = lazy(() => import('./pages/Insights'));
+const RecentActivity = lazy(() => import('./pages/RecentActivity'));
 const Users = lazy(() => import('./pages/Users'));
 
 class PageErrorBoundary extends React.Component {
@@ -198,6 +199,10 @@ export default function App() {
               {activePage === 'insights' && hasPermission(user, 'insights') && (
                 <Insights />
               )}
+              {activePage === 'recent-activity' &&
+                hasPermission(user, 'devotees_edit') && (
+                  <RecentActivity user={user} />
+                )}
               {activePage === 'users' && hasPermission(user, 'users') && (
                 <Users currentUser={user} t={t} />
               )}

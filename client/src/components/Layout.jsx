@@ -21,6 +21,7 @@ import {
   Sparkles,
   PhoneCall,
   CopyCheck,
+  History,
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
 
@@ -158,6 +159,7 @@ export default function Layout({
     { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
     { id: 'duplicate-finder', label: t.navDuplicateFinder || 'Duplicate Devotee Finder', icon: CopyCheck, perm: 'devotees_edit' },
     { id: 'insights', label: t.navInsights, icon: BarChart3, perm: 'insights' },
+    { id: 'recent-activity', label: t.navRecentActivity || 'Recent Activity Log', icon: History, perm: 'devotees_edit' },
     { id: 'marquee', label: t.navMarquee, icon: Megaphone, perm: 'devotees_edit' },
   ].filter((item) => hasPermission(user, item.perm));
 

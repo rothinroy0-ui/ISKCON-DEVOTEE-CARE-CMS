@@ -88,7 +88,7 @@ export default function Dashboard({ user, t, onNavigate }) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Today's Birthdays */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80 lg:col-span-2">
+        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80 lg:col-span-3">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="rounded-xl bg-rose-50 p-2 text-rose-600">
@@ -183,34 +183,6 @@ export default function Dashboard({ user, t, onNavigate }) {
                       {t.inDays.replace('{n}', d.days_until_birthday)}
                     </span>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent Activity Log */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/80">
-          <div className="mb-4 flex items-center gap-2.5">
-            <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600">
-              <History className="h-5 w-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900">{t.recentActivity}</h3>
-          </div>
-
-          {logs.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-500">{t.noData}</div>
-          ) : (
-            <div className="space-y-3">
-              {logs.map((log) => (
-                <div key={log.id} className="rounded-xl bg-slate-50 p-3 text-xs ring-1 ring-slate-200/60">
-                  <div className="flex items-center justify-between font-semibold text-slate-800">
-                    <span>{log.user_name || 'System'}</span>
-                    <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200">
-                      {log.action}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-slate-600">{log.details}</p>
                 </div>
               ))}
             </div>
