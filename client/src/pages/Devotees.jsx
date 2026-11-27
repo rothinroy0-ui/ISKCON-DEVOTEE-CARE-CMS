@@ -201,6 +201,7 @@ export default function Devotees({ user, t }) {
             <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-4 py-3.5">SL NO</th>
+                <th className="px-5 py-3.5">{t.devoteeId}</th>
                 <th className="px-5 py-3.5">{t.fullName}</th>
                 <th className="px-5 py-3.5">{t.phone}</th>
                 <th className="px-5 py-3.5">{t.dob}</th>
@@ -211,13 +212,13 @@ export default function Devotees({ user, t }) {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-slate-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
                     Loading...
                   </td>
                 </tr>
               ) : devotees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-slate-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
                     {t.noData}
                   </td>
                 </tr>
@@ -226,6 +227,11 @@ export default function Devotees({ user, t }) {
                   <tr key={d.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-4 font-mono text-xs font-semibold text-slate-500">
                       {d.sl_no ?? idx + 1}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex rounded-lg bg-indigo-50 px-2.5 py-1 font-mono text-xs font-bold text-indigo-700 ring-1 ring-indigo-200/80">
+                        {d.devotee_id || '—'}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
