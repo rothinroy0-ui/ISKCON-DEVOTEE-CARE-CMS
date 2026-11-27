@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { apiRequest, getToken, setToken } from './api';
 import { translations } from './i18n';
 import Layout from './components/Layout';
+import PageSkeleton from './components/PageSkeleton';
 import { ToastProvider } from './components/Toast';
 import { ImagePreviewProvider } from './components/ImagePreviewModal';
 import { ConfirmProvider } from './components/ConfirmModal';
@@ -138,13 +139,7 @@ export default function App() {
           t={t}
         >
           <PageErrorBoundary key={activePage}>
-            <Suspense
-              fallback={
-                <div className="py-12 text-center text-sm text-slate-500">
-                  Loading page...
-                </div>
-              }
-            >
+            <Suspense fallback={<PageSkeleton />}>
               {activePage === 'dashboard' && hasPermission(user, 'dashboard') && (
                 <Dashboard user={user} t={t} onNavigate={setActivePage} />
               )}

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import StatCard from '../components/StatCard';
+import PageSkeleton from '../components/PageSkeleton';
 
 export default function Dashboard({ user, t, onNavigate }) {
   const [data, setData] = useState(null);
@@ -46,7 +47,7 @@ export default function Dashboard({ user, t, onNavigate }) {
   };
 
   if (loading) {
-    return <div className="py-12 text-center text-sm text-slate-500">Loading dashboard...</div>;
+    return <PageSkeleton />;
   }
 
   const summary = data?.summary || {};
