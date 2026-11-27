@@ -112,7 +112,7 @@ export default function Layout({
           src="/watermark.png"
           alt=""
           aria-hidden="true"
-          className="pointer-events-none fixed top-1/2 left-1/2 z-0 w-72 -translate-x-1/2 -translate-y-1/2 select-none opacity-50 sm:w-96"
+          className="pointer-events-none fixed top-1/2 left-1/2 z-0 w-72 -translate-x-1/2 -translate-y-1/2 select-none opacity-30 sm:w-96"
         />
         <div className="relative z-10 [&_.bg-white]:bg-white/85">
           <h2 className="mb-5 text-lg font-bold text-slate-900">

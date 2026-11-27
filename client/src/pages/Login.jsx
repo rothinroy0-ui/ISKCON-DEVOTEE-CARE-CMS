@@ -32,7 +32,7 @@ export default function Login({ onLogin, t }) {
         src="/watermark.png"
         alt=""
         aria-hidden="true"
-        className="pointer-events-none fixed top-1/2 left-1/2 z-0 w-72 -translate-x-1/2 -translate-y-1/2 select-none opacity-50 sm:w-96"
+        className="pointer-events-none fixed top-1/2 left-1/2 z-0 w-72 -translate-x-1/2 -translate-y-1/2 select-none opacity-30 sm:w-96"
       />
       <div className="relative z-10 w-full max-w-md rounded-3xl bg-white/85 p-8 shadow-xl ring-1 ring-slate-200/80">
         <div className="mb-6 text-center">
