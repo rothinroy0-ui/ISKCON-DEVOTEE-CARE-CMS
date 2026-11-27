@@ -3,9 +3,11 @@ import { UserPlus, Pencil, Trash2, ShieldCheck } from 'lucide-react';
 import { apiRequest } from '../api';
 import UserModal from '../components/UserModal';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/ConfirmModal';
 
 export default function Users({ currentUser, t }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -45,7 +47,13 @@ export default function Users({ currentUser, t }) {
   };
 
   const handleDelete = async (u) => {
-    if (!window.confirm(`Delete user @${u.username}?`)) return;
+    const ok = await confirm({
+      title: 'Delete User?',
+      message: `Are you sure you want to delete user @${u.username}?`,
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await apiRequest(`/api/users/${u.id}`, { method: 'DELETE' });
       toast.success(`User @${u.username} deleted.`);

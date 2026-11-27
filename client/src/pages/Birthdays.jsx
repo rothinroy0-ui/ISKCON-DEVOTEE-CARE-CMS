@@ -16,11 +16,13 @@ import {
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { useConfirm } from '../components/ConfirmModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
 
 export default function Birthdays({ user, t }) {
   const toast = useToast();
   const { openImage } = useImagePreview();
+  const confirm = useConfirm();
   const [analytics, setAnalytics] = useState(null);
   const [allDevotees, setAllDevotees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -173,6 +175,13 @@ export default function Birthdays({ user, t }) {
 
   const handleRemoveFromBirthdays = async (d) => {
     if (!canEdit) return;
+    const ok = await confirm({
+      title: 'Remove from Birthdays?',
+      message: `Are you sure you want to move "${d.full_name}" from Birthdays to Removal Record? They will still remain in the main Devotees database.`,
+      confirmText: 'Yes, Remove',
+      variant: 'warning',
+    });
+    if (!ok) return;
     try {
       await apiRequest(`/api/devotees/${d.id}/remove-from-tab`, {
         method: 'POST',

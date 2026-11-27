@@ -13,6 +13,7 @@ import { apiRequest, getToken } from '../api';
 import DevoteeModal from '../components/DevoteeModal';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
+import { useConfirm } from '../components/ConfirmModal';
 import { exportDevoteesPdf } from '../utils/pdfExport';
 
 const MONTHS = [
@@ -23,6 +24,7 @@ const MONTHS = [
 export default function Devotees({ user, t }) {
   const toast = useToast();
   const { openImage } = useImagePreview();
+  const confirm = useConfirm();
   const [devotees, setDevotees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -72,7 +74,13 @@ export default function Devotees({ user, t }) {
   };
 
   const handleDelete = async (d) => {
-    if (!window.confirm(`Delete ${d.full_name}?`)) return;
+    const ok = await confirm({
+      title: 'Delete Devotee?',
+      message: `Are you sure you want to permanently delete "${d.full_name}" (${d.devotee_id}) from the database? This action cannot be undone.`,
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await apiRequest(`/api/devotees/${d.id}`, { method: 'DELETE' });
       toast.success(`${d.full_name} deleted.`);

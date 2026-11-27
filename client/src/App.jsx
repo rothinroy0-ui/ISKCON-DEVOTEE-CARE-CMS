@@ -4,6 +4,7 @@ import { translations } from './i18n';
 import Layout from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import { ImagePreviewProvider } from './components/ImagePreviewModal';
+import { ConfirmProvider } from './components/ConfirmModal';
 import Login from './pages/Login';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -101,7 +102,8 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <ImagePreviewProvider>
+      <ConfirmProvider>
+        <ImagePreviewProvider>
         <Layout
           user={user}
           activePage={activePage}
@@ -133,6 +135,7 @@ export default function App() {
           </PageErrorBoundary>
         </Layout>
       </ImagePreviewProvider>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }
