@@ -103,9 +103,11 @@ export default function Layout({
   children,
 }) {
   const [dirOpen, setDirOpen] = useState(false);
+  const [parcelOpen, setParcelOpen] = useState(false);
   const [commOpen, setCommOpen] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
   const dirRef = useRef(null);
+  const parcelRef = useRef(null);
   const commRef = useRef(null);
   const dataRef = useRef(null);
 
@@ -113,6 +115,9 @@ export default function Layout({
     const handleClickOutside = (e) => {
       if (dirRef.current && !dirRef.current.contains(e.target)) {
         setDirOpen(false);
+      }
+      if (parcelRef.current && !parcelRef.current.contains(e.target)) {
+        setParcelOpen(false);
       }
       if (commRef.current && !commRef.current.contains(e.target)) {
         setCommOpen(false);
@@ -133,13 +138,17 @@ export default function Layout({
     { id: 'applications', label: t.navApplications, icon: ClipboardCheck, perm: 'applications' },
   ].filter((item) => hasPermission(user, item.perm));
 
-  const commItems = [
+  const parcelItems = [
+    { id: 'parcels', label: t.navParcels, icon: Package, perm: 'parcels' },
     {
       id: 'parcel-communication',
       label: t.navParcelCommunication || 'Parcel Communication',
       icon: Truck,
       perm: 'communication',
     },
+  ].filter((item) => hasPermission(user, item.perm));
+
+  const commItems = [
     {
       id: 'devotee-greetings',
       label: t.navDevoteeGreetings || 'Devotee Greetings',
@@ -165,7 +174,6 @@ export default function Layout({
 
   const standaloneItems = [
     { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard, perm: 'dashboard' },
-    { id: 'parcels', label: t.navParcels, icon: Package, perm: 'parcels' },
     { id: 'users', label: t.navUsers, icon: ShieldCheck, perm: 'users' },
   ].filter((item) => hasPermission(user, item.perm));
 
@@ -174,6 +182,7 @@ export default function Layout({
   const allAllowedItems = [
     ...standaloneItems,
     ...directoryItems,
+    ...parcelItems,
     ...commItems,
     ...dataItems,
   ];
@@ -187,6 +196,7 @@ export default function Layout({
         type="button"
         onClick={() => {
           setDirOpen(false);
+          setParcelOpen(false);
           setCommOpen(false);
           setDataOpen(false);
           onNavigate(item.id);
@@ -261,7 +271,16 @@ export default function Layout({
             groupRef={dirRef}
           />
 
-          {standalone('parcels') && renderNavItem(standalone('parcels'))}
+          <NavGroup
+            label={t.navParcels}
+            icon={Package}
+            items={parcelItems}
+            activePage={activePage}
+            onNavigate={onNavigate}
+            open={parcelOpen}
+            setOpen={setParcelOpen}
+            groupRef={parcelRef}
+          />
 
           <NavGroup
             label="Communication Centre"
