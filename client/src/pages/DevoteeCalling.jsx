@@ -6,66 +6,33 @@ import {
   Search,
   MapPin,
   CheckCircle2,
-  PhoneMissed,
   Clock,
-  PhoneOff,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 
-const CALL_PURPOSES = [
+const OUTCOMES = [
   {
-    key: 'general',
-    label: 'General Care Call',
-    script:
-      'Hare Krishna! Calling from ISKCON Durgapur (RADHAPUR Devotee Care) to check on your wellbeing and sadhana.',
+    key: 'Completed',
+    label: 'Completed',
+    icon: CheckCircle2,
+    cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100',
+    activeCls: 'bg-emerald-600 text-white ring-emerald-600',
   },
   {
-    key: 'birthday_anniversary',
-    label: 'Birthday / Anniversary Call',
-    script:
-      'Hare Krishna! Calling from ISKCON Durgapur to convey warm Krishna Conscious wishes on your auspicious occasion!',
-  },
-  {
-    key: 'parcel',
-    label: 'Parcel Confirmation Call',
-    script:
-      'Hare Krishna! Calling from ISKCON Durgapur regarding your parcel delivery address and dispatch confirmation.',
-  },
-  {
-    key: 'festival',
-    label: 'Festival / Sunday Feast Invite',
-    script:
-      'Hare Krishna! Calling to warmly invite you and your family to our upcoming program & Maha Prasadam at ISKCON Durgapur.',
+    key: 'Pending',
+    label: 'Pending',
+    icon: Clock,
+    cls: 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100',
+    activeCls: 'bg-rose-600 text-white ring-rose-600',
   },
 ];
 
-const OUTCOMES = [
-  {
-    key: 'Connected',
-    label: 'Connected',
-    icon: CheckCircle2,
-    cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100',
-  },
-  {
-    key: 'No Answer',
-    label: 'No Answer',
-    icon: PhoneMissed,
-    cls: 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100',
-  },
-  {
-    key: 'Call Back',
-    label: 'Call Back',
-    icon: Clock,
-    cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200 hover:bg-indigo-100',
-  },
-  {
-    key: 'Switched Off',
-    label: 'Switched Off',
-    icon: PhoneOff,
-    cls: 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100',
-  },
-];
+const PARCEL_BADGES = {
+  packed: { label: 'Dispatched', cls: 'bg-indigo-100 text-indigo-700' },
+  in_transit: { label: 'In Transit', cls: 'bg-amber-100 text-amber-700' },
+  delivered: { label: 'Delivered', cls: 'bg-emerald-100 text-emerald-700' },
+};
 
 function buildWhatsAppCallUrl(rawPhone) {
   const digitsOnly = String(rawPhone || '').replace(/\D/g, '');
@@ -83,8 +50,6 @@ export default function DevoteeCalling() {
   const toast = useToast();
   const [devotees, setDevotees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [purposeKey, setPurposeKey] = useState('general');
-  const [callNote, setCallNote] = useState('');
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('all');
   const [loggingId, setLoggingId] = useState(null);
@@ -92,23 +57,32 @@ export default function DevoteeCalling() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [visibleCount, setVisibleCount] = useState(60);
 
-  useEffect(() => {
+  const loadParcelDevotees = () => {
     setLoading(true);
-    apiRequest('/api/devotees?sort=upcoming_birthday', { cache: true })
+    apiRequest('/api/devotees?sort=upcoming_birthday', { cache: false })
       .then((res) => {
-        setDevotees(res.devotees || []);
+        setDevotees(
+          (res.devotees || []).filter(
+            (d) =>
+              !d.removed_categories?.includes('parcel') &&
+              d.gift_status &&
+              d.gift_status !== 'none'
+          )
+        );
       })
       .catch((err) => {
-        toast.error(err.message || 'Failed to load devotees');
+        toast.error(err.message || 'Failed to load parcel devotees');
       })
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  const currentPurpose = useMemo(
-    () =>
-      CALL_PURPOSES.find((p) => p.key === purposeKey) || CALL_PURPOSES[0],
-    [purposeKey]
-  );
+  useEffect(() => {
+    loadParcelDevotees();
+    const onParcelUpdated = () => loadParcelDevotees();
+    window.addEventListener('cms:parcel-updated', onParcelUpdated);
+    return () =>
+      window.removeEventListener('cms:parcel-updated', onParcelUpdated);
+  }, []);
 
   const cities = useMemo(() => {
     const set = new Set();
@@ -187,9 +161,8 @@ export default function DevoteeCalling() {
           devoteeId: d.id,
           devoteeName: displayName,
           phone,
-          purpose: currentPurpose.label,
+          purpose: 'Parcel Call',
           outcome,
-          notes: callNote,
         }),
       });
       setCallLogs((prev) => ({
@@ -225,9 +198,8 @@ export default function DevoteeCalling() {
             devoteeId: d.id,
             devoteeName: displayName,
             phone,
-            purpose: currentPurpose.label,
+            purpose: 'Parcel Call',
             outcome,
-            notes: callNote,
           }),
         });
         setCallLogs((prev) => ({
@@ -253,64 +225,6 @@ export default function DevoteeCalling() {
 
   return (
     <div className="space-y-6">
-      {/* Call Purpose Cards */}
-      <div>
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
-          Call Purpose &amp; Talking Points
-        </h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {CALL_PURPOSES.map((p) => {
-            const isActive = p.key === purposeKey;
-            return (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => setPurposeKey(p.key)}
-                className={`rounded-2xl bg-white p-4 text-left shadow-sm ring-1 transition ${
-                  isActive
-                    ? 'bg-indigo-50/60 ring-2 ring-indigo-500'
-                    : 'ring-slate-200 hover:bg-slate-50/70'
-                }`}
-              >
-                <div className="flex items-center gap-2 text-xs font-bold text-indigo-700">
-                  <PhoneCall className="h-3.5 w-3.5" />
-                  <span>{p.label}</span>
-                </div>
-                <p className="mt-2 line-clamp-2 text-xs text-slate-600">
-                  {p.script}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Call Script & Note */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Suggested Greeting / Script — {currentPurpose.label}
-            </p>
-            <p className="mt-1.5 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm text-slate-800 ring-1 ring-slate-200/70">
-              {currentPurpose.script}
-            </p>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
-              Optional Call Note (saved with log)
-            </label>
-            <input
-              type="text"
-              value={callNote}
-              onChange={(e) => setCallNote(e.target.value)}
-              placeholder="e.g. Confirmed address, will attend Sunday feast"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Search & City Filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <div className="relative min-w-[240px] flex-1">
@@ -322,7 +236,7 @@ export default function DevoteeCalling() {
               setSearch(e.target.value);
               setVisibleCount(60);
             }}
-            placeholder="Search devotee by name, Devotee ID, phone, or city..."
+            placeholder="Search parcel devotees by name, Devotee ID, phone, or city..."
             className="w-full rounded-xl border border-slate-200 py-2 pr-3 pl-9 text-sm focus:border-indigo-500 focus:outline-none"
           />
         </div>
@@ -352,7 +266,7 @@ export default function DevoteeCalling() {
               {selectedIds.size} selected
             </span>
             <span className="text-xs font-medium text-indigo-900">
-              Bulk log call outcome for selected devotees
+              Bulk log call outcome
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -370,7 +284,7 @@ export default function DevoteeCalling() {
                   key={o.key}
                   type="button"
                   onClick={() => handleBulkLogOutcome(o.key)}
-                  className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold ring-1 transition ${o.cls}`}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 transition ${o.cls}`}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {o.label}
@@ -381,15 +295,15 @@ export default function DevoteeCalling() {
         </div>
       )}
 
-      {/* Devotees Calling Table */}
+      {/* Parcel Devotees Calling Table */}
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         {loading ? (
           <div className="py-12 text-center text-sm text-slate-500">
-            Loading devotees...
+            Loading parcel devotees...
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-500">
-            No matching devotees found.
+            No parcel devotees found. Click Parcel on a devotee in Birthdays or Anniversaries to add them here.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -408,8 +322,9 @@ export default function DevoteeCalling() {
                   <th className="px-4 py-3">Devotee</th>
                   <th className="px-4 py-3">Phone</th>
                   <th className="px-4 py-3">City</th>
+                  <th className="px-4 py-3">Parcel Status</th>
                   <th className="px-4 py-3">Call Action</th>
-                  <th className="px-4 py-3 text-right">Log Call Outcome</th>
+                  <th className="px-4 py-3 text-right">Log Outcome</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -419,6 +334,7 @@ export default function DevoteeCalling() {
                     d.whatsapp_no || d.contact_no || d.phone
                   );
                   const lastLog = callLogs[d.id];
+                  const parcelBadge = PARCEL_BADGES[d.gift_status];
                   return (
                     <tr
                       key={d.id}
@@ -468,6 +384,15 @@ export default function DevoteeCalling() {
                         )}
                       </td>
                       <td className="px-4 py-3">
+                        {parcelBadge && (
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${parcelBadge.cls}`}
+                          >
+                            {parcelBadge.label}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="inline-flex items-center gap-2">
                           {phone ? (
                             <a
@@ -494,25 +419,22 @@ export default function DevoteeCalling() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                          {lastLog && (
-                            <span className="mr-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                              {lastLog.outcome} ({lastLog.time})
-                            </span>
-                          )}
+                        <div className="inline-flex items-center justify-end gap-2">
                           {OUTCOMES.map((o) => {
                             const Icon = o.icon;
+                            const isSelected = lastLog?.outcome === o.key;
                             return (
                               <button
                                 key={o.key}
                                 type="button"
                                 disabled={loggingId === d.id}
                                 onClick={() => handleLogOutcome(d, o.key)}
-                                title={`Log ${o.label}`}
-                                className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold ring-1 transition disabled:opacity-50 ${o.cls}`}
+                                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-50 ${
+                                  isSelected ? o.activeCls : o.cls
+                                }`}
                               >
-                                <Icon className="h-3 w-3" />
-                                <span className="hidden xl:inline">{o.label}</span>
+                                <Icon className="h-3.5 w-3.5" />
+                                {o.label}
                               </button>
                             );
                           })}
