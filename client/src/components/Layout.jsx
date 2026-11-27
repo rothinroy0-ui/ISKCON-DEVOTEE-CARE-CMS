@@ -208,7 +208,7 @@ export default function Layout({
           {standalone('dashboard') && renderNavItem(standalone('dashboard'))}
 
           <NavGroup
-            label="Devotees Care"
+            label="Devotee Care"
             icon={FolderKanban}
             items={directoryItems}
             activePage={activePage}
