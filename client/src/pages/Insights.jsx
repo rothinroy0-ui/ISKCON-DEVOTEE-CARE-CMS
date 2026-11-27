@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart3,
   Users,
   Sparkles,
   Droplets,
@@ -12,10 +11,38 @@ import {
   Package,
   ArchiveX,
   Search,
+  X,
+  Phone,
+  ChevronRight,
 } from 'lucide-react';
 import { apiRequest } from '../api';
+import { useImagePreview } from '../components/ImagePreviewModal';
 
-function BreakdownCard({ title, icon: Icon, iconBg, barColor, items, total, searchable = false }) {
+function isFilled(v) {
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim();
+  return s !== '' && !['null', 'none', 'na', 'n/a', '-'].includes(s.toLowerCase());
+}
+
+function getAgeBucket(age) {
+  if (age === null || age === undefined || age < 0) return 'Unknown';
+  if (age < 18) return 'Under 18';
+  if (age <= 25) return '18 – 25';
+  if (age <= 40) return '26 – 40';
+  if (age <= 60) return '41 – 60';
+  return '60+';
+}
+
+function BreakdownCard({
+  title,
+  icon: Icon,
+  iconBg,
+  barColor,
+  items,
+  total,
+  searchable = false,
+  onSelectItem,
+}) {
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -38,7 +65,7 @@ function BreakdownCard({ title, icon: Icon, iconBg, barColor, items, total, sear
           <div>
             <h3 className="text-sm font-bold text-slate-900">{title}</h3>
             <p className="text-[11px] text-slate-400">
-              {items.length} categories · {total} devotees
+              {items.length} categories · click any item to view devotees
             </p>
           </div>
         </div>
@@ -57,19 +84,30 @@ function BreakdownCard({ title, icon: Icon, iconBg, barColor, items, total, sear
         </div>
       )}
 
-      <div className="flex-1 space-y-2.5">
+      <div className="flex-1 space-y-1.5">
         {visible.length === 0 ? (
           <p className="py-4 text-center text-xs text-slate-400">No matches</p>
         ) : (
           visible.map((item) => (
-            <div key={item.label}>
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => onSelectItem?.(item)}
+              className="group w-full rounded-lg p-1.5 text-left transition hover:bg-slate-50"
+            >
               <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                <span className="truncate font-medium text-slate-700" title={item.label}>
-                  {item.label}
+                <span
+                  className="flex min-w-0 items-center gap-1 font-medium text-slate-700 group-hover:text-indigo-700"
+                  title={item.label}
+                >
+                  <span className="truncate">{item.label}</span>
+                  <ChevronRight className="h-3 w-3 shrink-0 opacity-0 transition group-hover:opacity-100" />
                 </span>
                 <span className="shrink-0 font-semibold text-slate-900">
                   {item.count}{' '}
-                  <span className="font-normal text-slate-400">({item.pct}%)</span>
+                  <span className="font-normal text-slate-400">
+                    ({item.pct}%)
+                  </span>
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -80,7 +118,7 @@ function BreakdownCard({ title, icon: Icon, iconBg, barColor, items, total, sear
                   className={`h-full rounded-full ${barColor}`}
                 />
               </div>
-            </div>
+            </button>
           ))
         )}
       </div>
@@ -91,9 +129,7 @@ function BreakdownCard({ title, icon: Icon, iconBg, barColor, items, total, sear
           onClick={() => setExpanded((prev) => !prev)}
           className="mt-4 w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
         >
-          {expanded
-            ? 'Show Less'
-            : `Show All (${filtered.length})`}
+          {expanded ? 'Show Less' : `Show All (${filtered.length})`}
         </button>
       )}
     </div>
@@ -101,16 +137,25 @@ function BreakdownCard({ title, icon: Icon, iconBg, barColor, items, total, sear
 }
 
 export default function Insights() {
+  const { openImage } = useImagePreview();
   const [data, setData] = useState(null);
+  const [allDevotees, setAllDevotees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const [drilldown, setDrilldown] = useState(null);
+  const [modalSearch, setModalSearch] = useState('');
 
   const loadInsights = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await apiRequest('/api/analytics/insights');
-      setData(res);
+      const [ins, dev] = await Promise.all([
+        apiRequest('/api/analytics/insights'),
+        apiRequest('/api/devotees?sort=name'),
+      ]);
+      setData(ins);
+      setAllDevotees(dev.devotees || []);
     } catch (err) {
       setError(err.message || 'Failed to load insights');
     } finally {
@@ -121,6 +166,54 @@ export default function Insights() {
   useEffect(() => {
     loadInsights();
   }, []);
+
+  useEffect(() => {
+    if (!drilldown) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setDrilldown(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [drilldown]);
+
+  const openColumnDrilldown = (col, mode) => {
+    const fieldKey =
+      col.key === 'upload_your_passport_size_photo' ? 'photo_url' : col.key;
+    const list = allDevotees.filter((d) => {
+      const filled = isFilled(d[fieldKey]);
+      return mode === 'missing' ? !filled : filled;
+    });
+    setModalSearch('');
+    setDrilldown({
+      title: `${mode === 'missing' ? 'Missing' : 'Filled'}: ${col.label}`,
+      subtitle: `${list.length} devotees ${mode === 'missing' ? 'missing' : 'with'} ${col.label}`,
+      list,
+    });
+  };
+
+  const openCategoryDrilldown = (categoryTitle, matcher) => {
+    const list = allDevotees.filter(matcher);
+    setModalSearch('');
+    setDrilldown({
+      title: categoryTitle,
+      subtitle: `${list.length} devotees`,
+      list,
+    });
+  };
+
+  const filteredModalList = useMemo(() => {
+    if (!drilldown) return [];
+    const q = modalSearch.trim().toLowerCase();
+    if (!q) return drilldown.list;
+    return drilldown.list.filter(
+      (d) =>
+        (d.devotee_id && d.devotee_id.toLowerCase().includes(q)) ||
+        (d.full_name && d.full_name.toLowerCase().includes(q)) ||
+        (d.initiated_name && d.initiated_name.toLowerCase().includes(q)) ||
+        (d.contact_no && d.contact_no.toLowerCase().includes(q)) ||
+        (d.town_city && d.town_city.toLowerCase().includes(q))
+    );
+  }, [drilldown, modalSearch]);
 
   if (loading && !data) {
     return (
@@ -217,7 +310,8 @@ export default function Insights() {
               All Columns Insights ({data.completeness?.length || 0} Columns)
             </h3>
             <p className="text-xs text-slate-500">
-              Filled vs missing count across every column in devotee_data
+              Click <strong>Missing</strong> or <strong>Filled</strong> on any
+              column to see the devotee list
             </p>
           </div>
         </div>
@@ -256,9 +350,21 @@ export default function Insights() {
                   }`}
                 />
               </div>
-              <div className="mt-1.5 flex justify-between text-[11px] text-slate-500">
-                <span>Filled: {col.filled}</span>
-                <span>Missing: {col.missing}</span>
+              <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => openColumnDrilldown(col, 'filled')}
+                  className="rounded-md px-1.5 py-0.5 font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  Filled: {col.filled}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openColumnDrilldown(col, 'missing')}
+                  className="rounded-md bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700 ring-1 ring-rose-200/80 transition hover:bg-rose-100"
+                >
+                  Missing: {col.missing}
+                </button>
               </div>
             </div>
           ))}
@@ -274,6 +380,13 @@ export default function Insights() {
           barColor="bg-indigo-500"
           items={data.breakdowns?.gender || []}
           total={total}
+          onSelectItem={(item) =>
+            openCategoryDrilldown(`Gender: ${item.label}`, (d) =>
+              item.label === 'Not Specified'
+                ? !isFilled(d.gender)
+                : String(d.gender || '').trim() === item.label
+            )
+          }
         />
 
         <BreakdownCard
@@ -283,6 +396,14 @@ export default function Insights() {
           barColor="bg-rose-500"
           items={data.breakdowns?.bloodGroup || []}
           total={total}
+          onSelectItem={(item) =>
+            openCategoryDrilldown(`Blood Group: ${item.label}`, (d) =>
+              item.label === 'Not Specified'
+                ? !isFilled(d.blood_group)
+                : String(d.blood_group || '').trim().toUpperCase() ===
+                  item.label
+            )
+          }
         />
 
         <BreakdownCard
@@ -292,6 +413,12 @@ export default function Insights() {
           barColor="bg-amber-500"
           items={data.breakdowns?.ageGroups || []}
           total={total}
+          onSelectItem={(item) =>
+            openCategoryDrilldown(
+              `Age Group: ${item.label}`,
+              (d) => getAgeBucket(d.age) === item.label
+            )
+          }
         />
 
         <BreakdownCard
@@ -302,6 +429,13 @@ export default function Insights() {
           items={data.breakdowns?.townCity || []}
           total={total}
           searchable
+          onSelectItem={(item) =>
+            openCategoryDrilldown(`City: ${item.label}`, (d) =>
+              item.label === 'Not Specified'
+                ? !isFilled(d.town_city)
+                : String(d.town_city || '').trim() === item.label
+            )
+          }
         />
 
         <BreakdownCard
@@ -312,6 +446,13 @@ export default function Insights() {
           items={data.breakdowns?.teacherName || []}
           total={total}
           searchable
+          onSelectItem={(item) =>
+            openCategoryDrilldown(`Teacher: ${item.label}`, (d) =>
+              item.label === 'Not Specified'
+                ? !isFilled(d.teacher_name)
+                : String(d.teacher_name || '').trim() === item.label
+            )
+          }
         />
 
         <BreakdownCard
@@ -322,6 +463,13 @@ export default function Insights() {
           items={data.breakdowns?.spiritualMaster || []}
           total={total}
           searchable
+          onSelectItem={(item) =>
+            openCategoryDrilldown(`Spiritual Master: ${item.label}`, (d) =>
+              item.label === 'Not Specified'
+                ? !isFilled(d.spiritual_master)
+                : String(d.spiritual_master || '').trim() === item.label
+            )
+          }
         />
       </div>
 
@@ -340,20 +488,30 @@ export default function Insights() {
             {(data.breakdowns?.birthMonths || []).map((m) => {
               const pct = Math.round((m.count / maxBirthMonth) * 100);
               return (
-                <div key={m.month} className="flex flex-col items-center">
+                <button
+                  key={m.month}
+                  type="button"
+                  onClick={() =>
+                    openCategoryDrilldown(
+                      `Birthdays in ${m.name}`,
+                      (d) => d.birth_month === m.month
+                    )
+                  }
+                  className="group flex flex-col items-center rounded-lg p-1 transition hover:bg-indigo-50"
+                >
                   <span className="mb-1 text-[11px] font-bold text-slate-700">
                     {m.count}
                   </span>
                   <div className="flex h-20 w-full items-end rounded-lg bg-slate-100 p-1">
                     <div
                       style={{ height: `${Math.max(pct, m.count > 0 ? 10 : 3)}%` }}
-                      className="w-full rounded bg-indigo-500"
+                      className="w-full rounded bg-indigo-500 group-hover:bg-indigo-600"
                     />
                   </div>
                   <span className="mt-1 text-[11px] font-semibold text-slate-500">
                     {m.shortName}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -372,20 +530,30 @@ export default function Insights() {
             {(data.breakdowns?.anniversaryMonths || []).map((m) => {
               const pct = Math.round((m.count / maxAnnivMonth) * 100);
               return (
-                <div key={m.month} className="flex flex-col items-center">
+                <button
+                  key={m.month}
+                  type="button"
+                  onClick={() =>
+                    openCategoryDrilldown(
+                      `Anniversaries in ${m.name}`,
+                      (d) => d.anniversary_month === m.month
+                    )
+                  }
+                  className="group flex flex-col items-center rounded-lg p-1 transition hover:bg-rose-50"
+                >
                   <span className="mb-1 text-[11px] font-bold text-slate-700">
                     {m.count}
                   </span>
                   <div className="flex h-20 w-full items-end rounded-lg bg-slate-100 p-1">
                     <div
                       style={{ height: `${Math.max(pct, m.count > 0 ? 10 : 3)}%` }}
-                      className="w-full rounded bg-rose-500"
+                      className="w-full rounded bg-rose-500 group-hover:bg-rose-600"
                     />
                   </div>
                   <span className="mt-1 text-[11px] font-semibold text-slate-500">
                     {m.shortName}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -402,30 +570,71 @@ export default function Insights() {
             </h3>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-emerald-50 p-3">
-              <div className="text-[11px] font-semibold text-emerald-700">Wished</div>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown('Wished This Year', (d) => d.wished_this_year)
+              }
+              className="rounded-xl bg-emerald-50 p-3 text-left transition hover:ring-2 hover:ring-emerald-300"
+            >
+              <div className="text-[11px] font-semibold text-emerald-700">
+                Wished
+              </div>
               <div className="mt-1 text-lg font-bold text-emerald-800">
                 {data.giftsAndWishes?.wishedThisYear || 0}
               </div>
-            </div>
-            <div className="rounded-xl bg-amber-50 p-3">
-              <div className="text-[11px] font-semibold text-amber-700">Packed</div>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown(
+                  'Gifts Packed',
+                  (d) => d.gift_status === 'packed'
+                )
+              }
+              className="rounded-xl bg-amber-50 p-3 text-left transition hover:ring-2 hover:ring-amber-300"
+            >
+              <div className="text-[11px] font-semibold text-amber-700">
+                Packed
+              </div>
               <div className="mt-1 text-lg font-bold text-amber-800">
                 {data.giftsAndWishes?.packed || 0}
               </div>
-            </div>
-            <div className="rounded-xl bg-sky-50 p-3">
-              <div className="text-[11px] font-semibold text-sky-700">In Transit</div>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown(
+                  'Parcels In Transit',
+                  (d) => d.gift_status === 'in_transit'
+                )
+              }
+              className="rounded-xl bg-sky-50 p-3 text-left transition hover:ring-2 hover:ring-sky-300"
+            >
+              <div className="text-[11px] font-semibold text-sky-700">
+                In Transit
+              </div>
               <div className="mt-1 text-lg font-bold text-sky-800">
                 {data.giftsAndWishes?.inTransit || 0}
               </div>
-            </div>
-            <div className="rounded-xl bg-indigo-50 p-3">
-              <div className="text-[11px] font-semibold text-indigo-700">Delivered</div>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown(
+                  'Parcels Delivered',
+                  (d) => d.gift_status === 'delivered'
+                )
+              }
+              className="rounded-xl bg-indigo-50 p-3 text-left transition hover:ring-2 hover:ring-indigo-300"
+            >
+              <div className="text-[11px] font-semibold text-indigo-700">
+                Delivered
+              </div>
               <div className="mt-1 text-lg font-bold text-indigo-800">
                 {data.giftsAndWishes?.delivered || 0}
               </div>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -438,32 +647,165 @@ export default function Insights() {
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl bg-slate-100 p-3">
-              <div className="text-[11px] font-semibold text-slate-600">Total</div>
+              <div className="text-[11px] font-semibold text-slate-600">
+                Total
+              </div>
               <div className="mt-1 text-lg font-bold text-slate-900">
                 {data.removals?.total || 0}
               </div>
             </div>
-            <div className="rounded-xl bg-indigo-50 p-3">
-              <div className="text-[11px] font-semibold text-indigo-700">Birthdays</div>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown('Removed from Birthdays', (d) =>
+                  d.removed_categories?.includes('birthday')
+                )
+              }
+              className="rounded-xl bg-indigo-50 p-3 text-left transition hover:ring-2 hover:ring-indigo-300"
+            >
+              <div className="text-[11px] font-semibold text-indigo-700">
+                Birthdays
+              </div>
               <div className="mt-1 text-lg font-bold text-indigo-800">
                 {data.removals?.birthday || 0}
               </div>
-            </div>
-            <div className="rounded-xl bg-rose-50 p-3">
-              <div className="text-[11px] font-semibold text-rose-700">Anniversaries</div>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown('Removed from Anniversaries', (d) =>
+                  d.removed_categories?.includes('anniversary')
+                )
+              }
+              className="rounded-xl bg-rose-50 p-3 text-left transition hover:ring-2 hover:ring-rose-300"
+            >
+              <div className="text-[11px] font-semibold text-rose-700">
+                Anniversaries
+              </div>
               <div className="mt-1 text-lg font-bold text-rose-800">
                 {data.removals?.anniversary || 0}
               </div>
-            </div>
-            <div className="rounded-xl bg-amber-50 p-3">
-              <div className="text-[11px] font-semibold text-amber-700">Parcels</div>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openCategoryDrilldown('Removed from Parcels', (d) =>
+                  d.removed_categories?.includes('parcel')
+                )
+              }
+              className="rounded-xl bg-amber-50 p-3 text-left transition hover:ring-2 hover:ring-amber-300"
+            >
+              <div className="text-[11px] font-semibold text-amber-700">
+                Parcels
+              </div>
               <div className="mt-1 text-lg font-bold text-amber-800">
                 {data.removals?.parcel || 0}
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Drill-down Modal */}
+      {drilldown && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={() => setDrilldown(null)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {drilldown.title}
+                </h3>
+                <p className="text-xs text-slate-500">{drilldown.subtitle}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrilldown(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="border-b border-slate-100 px-6 py-3">
+              <div className="relative">
+                <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  placeholder="Search by name, initiated name, ID, phone, or city..."
+                  className="w-full rounded-xl border border-slate-200 py-2 pr-3 pl-9 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-3">
+              {filteredModalList.length === 0 ? (
+                <div className="py-10 text-center text-sm text-slate-400">
+                  No devotees found
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredModalList.map((d, idx) => (
+                    <div
+                      key={d.id}
+                      className="flex flex-wrap items-center justify-between gap-3 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="w-7 shrink-0 text-center font-mono text-xs font-semibold text-slate-400">
+                          {idx + 1}
+                        </span>
+                        {d.photo_url ? (
+                          <img
+                            src={d.photo_url}
+                            alt={d.full_name}
+                            loading="lazy"
+                            onClick={() =>
+                              openImage(d.photo_url, d.full_name, d.devotee_id)
+                            }
+                            className="h-9 w-8 shrink-0 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200"
+                          />
+                        ) : (
+                          <span className="flex h-9 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500">
+                            {d.full_name?.slice(0, 2).toUpperCase()}
+                          </span>
+                        )}
+                        <div>
+                          <div className="font-semibold text-slate-900">
+                            {d.full_name}
+                            {(d.initiated_name || d.spiritual_name) && (
+                              <span className="ml-1.5 text-xs font-medium text-indigo-600">
+                                ({d.initiated_name || d.spiritual_name})
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span className="font-mono text-[11px]">
+                              {d.devotee_id}
+                            </span>
+                            {d.contact_no && (
+                              <span className="inline-flex items-center gap-1">
+                                • <Phone className="h-3 w-3" /> {d.contact_no}
+                              </span>
+                            )}
+                            {d.town_city && <span>• {d.town_city}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
