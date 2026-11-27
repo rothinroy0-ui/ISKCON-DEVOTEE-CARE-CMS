@@ -48,6 +48,60 @@ async function createApp() {
   app.use('/api/devotees', createDevoteeRoutes(db, authMiddleware));
   app.use('/api/analytics', createAnalyticsRoutes(db, authMiddleware));
 
+  app.get('/api/settings/marquee', authMiddleware.requireAuth, async (_req, res, next) => {
+    try {
+      const r = await db
+        .query("SELECT value FROM portal_settings WHERE key = 'marquee_config'")
+        .catch(() => ({ rows: [] }));
+      const defaults = {
+        enabled: true,
+        text: 'Hare Krishna! Welcome to ISKCON Durgapur (RADHAPUR Devotee Care) — Devotee Management System Portal.',
+        behavior: 'scroll',
+        speed: 'normal',
+      };
+      if (r.rows.length === 0) {
+        return res.json({ marquee: defaults });
+      }
+      try {
+        const parsed = JSON.parse(r.rows[0].value);
+        return res.json({ marquee: { ...defaults, ...parsed } });
+      } catch {
+        return res.json({ marquee: defaults });
+      }
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.put(
+    '/api/settings/marquee',
+    authMiddleware.requireAuth,
+    authMiddleware.requirePermission('devotees_edit', 'bulk_fix'),
+    async (req, res, next) => {
+      try {
+        const { enabled = true, text = '', behavior = 'scroll', speed = 'normal' } = req.body || {};
+        const marquee = {
+          enabled: Boolean(enabled),
+          text: String(text || '').trim(),
+          behavior: ['scroll', 'alternate'].includes(behavior) ? behavior : 'scroll',
+          speed: ['slow', 'normal', 'fast'].includes(speed) ? speed : 'normal',
+        };
+        await db.query(
+          `INSERT INTO portal_settings (key, value, updated_by, updated_at)
+           VALUES ('marquee_config', $1, $2, NOW())
+           ON CONFLICT (key) DO UPDATE SET
+             value = EXCLUDED.value,
+             updated_by = EXCLUDED.updated_by,
+             updated_at = NOW()`,
+          [JSON.stringify(marquee), req.user.name || req.user.username]
+        );
+        res.json({ ok: true, marquee });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
   const clientDist = path.join(__dirname, '..', 'client', 'dist');
   if (!process.env.VERCEL && fs.existsSync(clientDist)) {
     app.use(

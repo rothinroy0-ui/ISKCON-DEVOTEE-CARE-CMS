@@ -5,3 +5,28 @@
     font-family: "Plus Jakarta Sans", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
   }
 }
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes marquee-alternate {
+  0% {
+    transform: translateX(0%);
+  }
+  50% {
+    transform: translateX(calc(100vw - 100% - 4rem));
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.marquee-track:hover .marquee-content {
+  animation-play-state: paused;
+}

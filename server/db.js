@@ -38,7 +38,7 @@ async function initDb() {
   const pool = createPool();
 
   const schemaCheck = await pool
-    .query("SELECT to_regclass('public.devotee_applications') AS tbl")
+    .query("SELECT to_regclass('public.portal_settings') AS tbl")
     .catch(() => ({ rows: [{ tbl: null }] }));
 
   if (schemaCheck.rows[0]?.tbl) {
@@ -158,6 +158,13 @@ async function initDb() {
       reviewed_by_name TEXT,
       reviewed_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS portal_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_by TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT;

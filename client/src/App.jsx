@@ -15,6 +15,7 @@ const Anniversaries = lazy(() => import('./pages/Anniversaries'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const Removals = lazy(() => import('./pages/Removals'));
 const Applications = lazy(() => import('./pages/Applications'));
+const MarqueeSettings = lazy(() => import('./pages/MarqueeSettings'));
 const RecycleBin = lazy(() => import('./pages/RecycleBin'));
 const BulkCorrection = lazy(() => import('./pages/BulkCorrection'));
 const Insights = lazy(() => import('./pages/Insights'));
@@ -58,6 +59,12 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
+  const [marquee, setMarquee] = useState({
+    enabled: true,
+    text: 'Hare Krishna! Welcome to ISKCON Durgapur (RADHAPUR Devotee Care) — Devotee Management System Portal.',
+    behavior: 'scroll',
+    speed: 'normal',
+  });
 
   const t = translations.en;
 
@@ -81,6 +88,15 @@ export default function App() {
 
     return () => window.removeEventListener('cms:unauthorized', handleUnauthorized);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    apiRequest('/api/settings/marquee')
+      .then((res) => {
+        if (res?.marquee) setMarquee(res.marquee);
+      })
+      .catch(() => {});
+  }, [user]);
 
   const handleLogout = () => {
     setToken('');
@@ -113,6 +129,7 @@ export default function App() {
           activePage={activePage}
           onNavigate={setActivePage}
           onLogout={handleLogout}
+          marquee={marquee}
           t={t}
         >
           <PageErrorBoundary key={activePage}>
@@ -145,6 +162,13 @@ export default function App() {
               {activePage === 'applications' &&
                 hasPermission(user, 'applications') && (
                   <Applications user={user} t={t} />
+                )}
+              {activePage === 'marquee' &&
+                hasPermission(user, 'devotees_edit') && (
+                  <MarqueeSettings
+                    marquee={marquee}
+                    onMarqueeUpdated={setMarquee}
+                  />
                 )}
               {activePage === 'recycle-bin' &&
                 hasPermission(user, 'devotees_edit') && <RecycleBin user={user} />}

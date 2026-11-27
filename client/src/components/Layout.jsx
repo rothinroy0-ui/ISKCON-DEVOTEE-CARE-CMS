@@ -15,6 +15,7 @@ import {
   ChevronDown,
   FolderKanban,
   Database,
+  Megaphone,
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
 
@@ -91,6 +92,7 @@ export default function Layout({
   activePage,
   onNavigate,
   onLogout,
+  marquee,
   t,
   children,
 }) {
@@ -124,6 +126,7 @@ export default function Layout({
     { id: 'recycle-bin', label: t.navRecycleBin, icon: Recycle, perm: 'devotees_edit' },
     { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
     { id: 'insights', label: t.navInsights, icon: BarChart3, perm: 'insights' },
+    { id: 'marquee', label: t.navMarquee, icon: Megaphone, perm: 'devotees_edit' },
   ].filter((item) => hasPermission(user, item.perm));
 
   const standaloneItems = [
@@ -233,6 +236,29 @@ export default function Layout({
 
           {standalone('users') && renderNavItem(standalone('users'))}
         </nav>
+
+        {marquee?.enabled && marquee?.text?.trim() && (
+          <div className="marquee-track overflow-hidden border-t border-amber-200/70 bg-gradient-to-r from-amber-50 via-rose-50 to-amber-50 px-4 py-1.5">
+            <div
+              className="marquee-content inline-block whitespace-nowrap text-xs font-semibold text-rose-800"
+              style={{
+                animation: `${
+                  marquee.behavior === 'alternate'
+                    ? 'marquee-alternate'
+                    : 'marquee-scroll'
+                } ${
+                  marquee.speed === 'slow'
+                    ? 28
+                    : marquee.speed === 'fast'
+                    ? 10
+                    : 18
+                }s linear infinite`,
+              }}
+            >
+              {marquee.text}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}

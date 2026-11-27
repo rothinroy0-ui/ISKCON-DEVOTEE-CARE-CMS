@@ -7,12 +7,14 @@ import {
   Search,
   Phone,
   Plus,
+  Eye,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
 import { useConfirm } from '../components/ConfirmModal';
 import { useImagePreview } from '../components/ImagePreviewModal';
 import DevoteeModal from '../components/DevoteeModal';
+import ApplicationReviewModal from '../components/ApplicationReviewModal';
 import { hasPermission } from '../utils/permissions';
 
 export default function Applications({ user, t }) {
@@ -26,6 +28,8 @@ export default function Applications({ user, t }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [reviewApp, setReviewApp] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const canApprove = hasPermission(user, 'applications');
   const canSubmit =
@@ -93,16 +97,21 @@ export default function Applications({ user, t }) {
       confirmText: 'Yes, Approve',
       variant: 'warning',
     });
-    if (!ok) return;
+    if (!ok) return false;
 
+    setActionBusy(true);
     try {
       await apiRequest(`/api/devotees/applications/${appRow.id}/approve`, {
         method: 'POST',
       });
       toast.success(`${appRow.full_name} approved and added to main database!`);
       await loadApplications();
+      return true;
     } catch (err) {
       toast.error(err.message || 'Failed to approve application');
+      return false;
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -113,17 +122,34 @@ export default function Applications({ user, t }) {
       confirmText: 'Yes, Reject',
       variant: 'danger',
     });
-    if (!ok) return;
+    if (!ok) return false;
 
+    setActionBusy(true);
     try {
       await apiRequest(`/api/devotees/applications/${appRow.id}/reject`, {
         method: 'POST',
       });
       toast.success(`Application for ${appRow.full_name} rejected.`);
       await loadApplications();
+      return true;
     } catch (err) {
       toast.error(err.message || 'Failed to reject application');
+      return false;
+    } finally {
+      setActionBusy(false);
     }
+  };
+
+  const handleReviewApprove = async () => {
+    if (!reviewApp) return;
+    const done = await handleApprove(reviewApp);
+    if (done) setReviewApp(null);
+  };
+
+  const handleReviewReject = async () => {
+    if (!reviewApp) return;
+    const done = await handleReject(reviewApp);
+    if (done) setReviewApp(null);
   };
 
   return (
@@ -273,7 +299,7 @@ export default function Applications({ user, t }) {
                   <th className="px-4 py-3">Mobile &amp; City</th>
                   <th className="px-4 py-3">DOB &amp; Guru</th>
                   <th className="px-4 py-3">Status</th>
-                  {canApprove && <th className="px-4 py-3 text-right">Action</th>}
+                  <th className="px-4 py-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
