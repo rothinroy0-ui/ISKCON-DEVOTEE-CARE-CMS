@@ -2,6 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Camera, Trash2 } from 'lucide-react';
 import { useImagePreview } from './ImagePreviewModal';
 
+const SPIRITUAL_MASTERS = [
+  'HH JAYAPATAKA SWAMI GURUMAHARAJ',
+  'HH BHAKTI CHARU SWAMI GURUMAHARAJ',
+  'HH SUBHAG SWAMI GURUMAHARAJ',
+];
+
 const EMPTY_FORM = {
   devotee_id: '',
   full_name: '',
@@ -317,12 +323,24 @@ export default function DevoteeModal({ isOpen, onClose, onSave, devotee, t }) {
               <label className="mb-1 block text-xs font-semibold text-slate-700">
                 Spiritual Master
               </label>
-              <input
-                type="text"
+              <select
                 value={form.spiritual_master}
                 onChange={(e) => setForm({ ...form, spiritual_master: e.target.value })}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              />
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="">-- Select Spiritual Master --</option>
+                {SPIRITUAL_MASTERS.map((sm) => (
+                  <option key={sm} value={sm}>
+                    {sm}
+                  </option>
+                ))}
+                {form.spiritual_master &&
+                  !SPIRITUAL_MASTERS.includes(form.spiritual_master) && (
+                    <option value={form.spiritual_master}>
+                      {form.spiritual_master}
+                    </option>
+                  )}
+              </select>
             </div>
 
             <div>
