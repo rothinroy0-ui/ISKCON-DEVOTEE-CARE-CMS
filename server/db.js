@@ -15,12 +15,15 @@ function createPool() {
     process.env.PG_SSL === 'true' ||
     (process.env.PG_SSL !== 'false' && !isLocal);
 
+  const isServerless = Boolean(process.env.VERCEL);
+
   return new Pool({
     connectionString,
     ssl: useSsl ? { rejectUnauthorized: false } : false,
-    max: 10,
-    idleTimeoutMillis: 30000,
+    max: isServerless ? 1 : 3,
+    idleTimeoutMillis: isServerless ? 5000 : 10000,
     connectionTimeoutMillis: 10000,
+    allowExitOnIdle: true,
   });
 }
 

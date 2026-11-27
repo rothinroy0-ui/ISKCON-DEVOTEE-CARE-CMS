@@ -101,11 +101,9 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     try {
       const { search = '', month = '', sort = 'upcoming_birthday' } = req.query;
       const refDate = getLocalToday();
-      const [wishedSet, removedMap, result] = await Promise.all([
-        getWishedSet(refDate.getFullYear()),
-        getRemovedMap(),
-        db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC'),
-      ]);
+      const wishedSet = await getWishedSet(refDate.getFullYear());
+      const removedMap = await getRemovedMap();
+      const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
       let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate, removedMap));
 
       if (search.trim()) {
