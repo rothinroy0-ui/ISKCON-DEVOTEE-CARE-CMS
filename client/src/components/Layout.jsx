@@ -6,6 +6,7 @@ import {
   Heart,
   Package,
   ArchiveX,
+  ClipboardCheck,
   Recycle,
   Wand2,
   BarChart3,
@@ -42,6 +43,7 @@ export default function Layout({
     { id: 'birthdays', label: t.navBirthdays, icon: Cake, perm: 'birthdays' },
     { id: 'anniversaries', label: t.navAnniversaries, icon: Heart, perm: 'anniversaries' },
     { id: 'removals', label: t.navRemovals, icon: ArchiveX, perm: 'removals' },
+    { id: 'applications', label: t.navApplications, icon: ClipboardCheck, perm: 'applications' },
   ].filter((item) => hasPermission(user, item.perm));
 
   const otherNavItems = [

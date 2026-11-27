@@ -38,12 +38,10 @@ async function initDb() {
   const pool = createPool();
 
   const schemaCheck = await pool
-    .query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'permissions'"
-    )
-    .catch(() => ({ rows: [] }));
+    .query("SELECT to_regclass('public.devotee_applications') AS tbl")
+    .catch(() => ({ rows: [{ tbl: null }] }));
 
-  if (schemaCheck.rows.length > 0) {
+  if (schemaCheck.rows[0]?.tbl) {
     return pool;
   }
 
@@ -133,6 +131,35 @@ async function initDb() {
       UNIQUE(devotee_id, parcel_year)
     );
 
+    CREATE TABLE IF NOT EXISTS devotee_applications (
+      id SERIAL PRIMARY KEY,
+      devotee_id TEXT,
+      full_name TEXT NOT NULL,
+      fathers_name TEXT,
+      spouses_name TEXT,
+      dob TEXT NOT NULL,
+      gender TEXT DEFAULT 'Male',
+      contact_no BIGINT NOT NULL,
+      whatsapp_no BIGINT,
+      blood_group TEXT,
+      town_city TEXT,
+      full_address TEXT,
+      teacher_name TEXT,
+      spiritual_master TEXT,
+      initiated_name TEXT,
+      first_initiation_date TEXT,
+      second_initiation_date TEXT,
+      anniversary_date TEXT,
+      upload_your_passport_size_photo TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+      submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      submitted_by_name TEXT,
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_by_name TEXT,
+      reviewed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT;
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS devotee_id TEXT;
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS sl_no INTEGER;
@@ -141,6 +168,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_devotee_data_devotee_id ON devotee_data(devotee_id);
     CREATE INDEX IF NOT EXISTS idx_devotee_removals_category ON devotee_removals(category);
     CREATE INDEX IF NOT EXISTS idx_parcels_year ON parcels(parcel_year);
+    CREATE INDEX IF NOT EXISTS idx_devotee_applications_status ON devotee_applications(status);
   `);
 
   await pool.query(`

@@ -14,6 +14,7 @@ const Birthdays = lazy(() => import('./pages/Birthdays'));
 const Anniversaries = lazy(() => import('./pages/Anniversaries'));
 const Parcels = lazy(() => import('./pages/Parcels'));
 const Removals = lazy(() => import('./pages/Removals'));
+const Applications = lazy(() => import('./pages/Applications'));
 const RecycleBin = lazy(() => import('./pages/RecycleBin'));
 const BulkCorrection = lazy(() => import('./pages/BulkCorrection'));
 const Insights = lazy(() => import('./pages/Insights'));
@@ -141,6 +142,10 @@ export default function App() {
               {activePage === 'removals' && hasPermission(user, 'removals') && (
                 <Removals user={user} />
               )}
+              {activePage === 'applications' &&
+                hasPermission(user, 'applications') && (
+                  <Applications user={user} t={t} />
+                )}
               {activePage === 'recycle-bin' &&
                 hasPermission(user, 'devotees_edit') && <RecycleBin user={user} />}
               {activePage === 'bulk-fix' && hasPermission(user, 'bulk_fix') && (

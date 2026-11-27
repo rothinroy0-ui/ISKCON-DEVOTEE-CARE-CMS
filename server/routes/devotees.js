@@ -877,6 +877,238 @@ function createDevoteeRoutes(db, { requireAuth, requirePermission }) {
     }
   });
 
+  router.get('/applications/list', requirePermission('applications', 'devotees_edit'), async (req, res, next) => {
+    try {
+      const result = await db.query(
+        'SELECT * FROM devotee_applications ORDER BY created_at DESC'
+      );
+      const applications = result.rows.map((row) => ({
+        ...row,
+        contact_no: row.contact_no ? String(row.contact_no) : '',
+        phone: row.contact_no ? String(row.contact_no) : '',
+        whatsapp_no: row.whatsapp_no ? String(row.whatsapp_no) : '',
+        photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
+      }));
+      res.json({ applications });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/applications', requirePermission('devotees_edit', 'applications'), async (req, res, next) => {
+    try {
+      const {
+        devotee_id,
+        full_name,
+        fathers_name,
+        spouses_name,
+        dob,
+        gender,
+        contact_no,
+        phone,
+        whatsapp_no,
+        blood_group,
+        town_city,
+        city,
+        full_address,
+        address,
+        teacher_name,
+        spiritual_master,
+        initiated_name,
+        spiritual_name,
+        first_initiation_date,
+        second_initiation_date,
+        anniversary_date,
+        upload_your_passport_size_photo,
+        photo_url,
+      } = req.body || {};
+
+      const contactBigint = parsePhoneBigint(contact_no || phone);
+      if (!full_name || !contactBigint || !dob) {
+        return res.status(400).json({ error: 'Full name, contact number, and date of birth are required' });
+      }
+      if (!parseDob(dob)) {
+        return res.status(400).json({ error: 'Please provide a valid date of birth' });
+      }
+
+      const inserted = await db.query(
+        `INSERT INTO devotee_applications (
+          devotee_id, full_name, fathers_name, spouses_name, dob, gender,
+          contact_no, whatsapp_no, blood_group, town_city, full_address,
+          teacher_name, spiritual_master, initiated_name,
+          first_initiation_date, second_initiation_date, anniversary_date,
+          upload_your_passport_size_photo, status, submitted_by, submitted_by_name
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11,
+          $12, $13, $14,
+          $15, $16, $17,
+          $18, 'pending', $19, $20
+        )
+        RETURNING *`,
+        [
+          devotee_id ? String(devotee_id).trim().toUpperCase() : null,
+          String(full_name).trim(),
+          fathers_name ? String(fathers_name).trim() : null,
+          spouses_name ? String(spouses_name).trim() : null,
+          String(dob).trim(),
+          gender || 'Male',
+          contactBigint,
+          parsePhoneBigint(whatsapp_no),
+          blood_group ? String(blood_group).trim() : null,
+          (town_city || city) ? String(town_city || city).trim() : null,
+          (full_address || address) ? String(full_address || address).trim() : null,
+          teacher_name ? String(teacher_name).trim() : null,
+          spiritual_master ? String(spiritual_master).trim() : null,
+          (initiated_name || spiritual_name) ? String(initiated_name || spiritual_name).trim() : null,
+          first_initiation_date ? String(first_initiation_date).trim() : null,
+          second_initiation_date ? String(second_initiation_date).trim() : null,
+          anniversary_date ? String(anniversary_date).trim() : null,
+          upload_your_passport_size_photo || photo_url || null,
+          req.user.id,
+          req.user.name || req.user.username,
+        ]
+      );
+
+      await logAudit(
+        db,
+        req.user,
+        'SUBMIT_APPLICATION',
+        'devotee_applications',
+        inserted.rows[0].id,
+        `Submitted registration application for ${inserted.rows[0].full_name}`
+      );
+      res.status(201).json({ application: inserted.rows[0] });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/applications/:id/approve', requirePermission('applications'), async (req, res, next) => {
+    try {
+      const appId = Number(req.params.id);
+      const appRes = await db.query(
+        'SELECT * FROM devotee_applications WHERE id = $1',
+        [appId]
+      );
+      const appRow = appRes.rows[0];
+      if (!appRow) {
+        return res.status(404).json({ error: 'Application not found' });
+      }
+      if (appRow.status === 'approved') {
+        return res.status(400).json({ error: 'Application is already approved' });
+      }
+
+      let finalDevoteeId = appRow.devotee_id
+        ? String(appRow.devotee_id).trim().toUpperCase()
+        : await generateNextId();
+
+      const dup = await db.query(
+        'SELECT devotee_id FROM devotee_data WHERE devotee_id = $1',
+        [finalDevoteeId]
+      );
+      if (dup.rows.length > 0) {
+        finalDevoteeId = await generateNextId();
+      }
+
+      const slRes = await db.query(
+        'SELECT COALESCE(MAX(sl_no), 0)::int + 1 AS next_sl FROM devotee_data'
+      );
+      const nextSlNo = slRes.rows[0]?.next_sl || 1;
+
+      const inserted = await db.query(
+        `INSERT INTO devotee_data (
+          sl_no, devotee_id, full_name, fathers_name, spouses_name, dob, gender,
+          contact_no, whatsapp_no, blood_group, town_city, full_address,
+          teacher_name, spiritual_master, initiated_name,
+          first_initiation_date, second_initiation_date, anniversary_date,
+          upload_your_passport_size_photo
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9, $10, $11, $12,
+          $13, $14, $15,
+          $16, $17, $18,
+          $19
+        )
+        RETURNING *`,
+        [
+          nextSlNo,
+          finalDevoteeId,
+          appRow.full_name,
+          appRow.fathers_name,
+          appRow.spouses_name,
+          appRow.dob,
+          appRow.gender,
+          appRow.contact_no,
+          appRow.whatsapp_no,
+          appRow.blood_group,
+          appRow.town_city,
+          appRow.full_address,
+          appRow.teacher_name,
+          appRow.spiritual_master,
+          appRow.initiated_name,
+          appRow.first_initiation_date,
+          appRow.second_initiation_date,
+          appRow.anniversary_date,
+          appRow.upload_your_passport_size_photo,
+        ]
+      );
+
+      await db.query(
+        `UPDATE devotee_applications
+         SET status = 'approved', reviewed_by = $1, reviewed_by_name = $2, reviewed_at = NOW(), devotee_id = $3
+         WHERE id = $4`,
+        [req.user.id, req.user.name || req.user.username, finalDevoteeId, appId]
+      );
+
+      await logAudit(
+        db,
+        req.user,
+        'APPROVE_APPLICATION',
+        'devotee_data',
+        inserted.rows[0].id,
+        `Approved application #${appId} for ${appRow.full_name} (${finalDevoteeId})`
+      );
+
+      res.json({ ok: true, devotee: inserted.rows[0] });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/applications/:id/reject', requirePermission('applications'), async (req, res, next) => {
+    try {
+      const appId = Number(req.params.id);
+      const appRes = await db.query(
+        'SELECT id, full_name, status FROM devotee_applications WHERE id = $1',
+        [appId]
+      );
+      if (appRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Application not found' });
+      }
+
+      await db.query(
+        `UPDATE devotee_applications
+         SET status = 'rejected', reviewed_by = $1, reviewed_by_name = $2, reviewed_at = NOW()
+         WHERE id = $3`,
+        [req.user.id, req.user.name || req.user.username, appId]
+      );
+
+      await logAudit(
+        db,
+        req.user,
+        'REJECT_APPLICATION',
+        'devotee_applications',
+        appId,
+        `Rejected application #${appId} for ${appRes.rows[0].full_name}`
+      );
+
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post('/bulk-update', requirePermission('bulk_fix'), async (req, res, next) => {
     try {
       const ALLOWED_FIELDS = new Set([

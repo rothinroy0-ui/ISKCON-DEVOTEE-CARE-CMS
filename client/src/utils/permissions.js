@@ -6,6 +6,7 @@ export const PERMISSION_OPTIONS = [
   { key: 'anniversaries', label: 'Anniversaries', desc: 'View Anniversaries tab & export Excel/PDF' },
   { key: 'parcels', label: 'Parcels (View & Update)', desc: 'View Parcels tab & update parcel status' },
   { key: 'removals', label: 'Removal Record', desc: 'View & restore removed records' },
+  { key: 'applications', label: 'Applications (Approve / Reject)', desc: 'Review & approve pending registrations' },
   { key: 'bulk_fix', label: 'Bulk Correction', desc: 'Access one-click bulk spelling correction tool' },
   { key: 'insights', label: 'Insights', desc: 'View all-column database insights & drill-down' },
   { key: 'users', label: 'User Management', desc: 'Create, edit & manage portal users' },

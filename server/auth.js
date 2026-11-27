@@ -33,6 +33,7 @@ const ALL_PERMISSIONS = [
   'anniversaries',
   'parcels',
   'removals',
+  'applications',
   'bulk_fix',
   'insights',
   'users',

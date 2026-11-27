@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import {
   Plus,
   Search,
-  Download,
   FileDown,
   Pencil,
   Trash2,
   Cake,
   Phone,
 } from 'lucide-react';
-import { apiRequest, getToken } from '../api';
+import { apiRequest } from '../api';
 import DevoteeModal from '../components/DevoteeModal';
 import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
@@ -33,7 +32,7 @@ export default function Devotees({ user, t }) {
   const [search, setSearch] = useState('');
   const [month, setMonth] = useState('');
   const [status, setStatus] = useState('all');
-  const [sort, setSort] = useState('upcoming_birthday');
+  const sort = 'upcoming_birthday';
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
@@ -71,7 +70,7 @@ export default function Devotees({ user, t }) {
   useEffect(() => {
     const timer = setTimeout(() => loadDevotees({ limit: 60, offset: 0 }), 150);
     return () => clearTimeout(timer);
-  }, [search, month, status, sort]);
+  }, [search, month, status]);
 
   const handleSave = async (form, id) => {
     if (id) {
@@ -81,11 +80,11 @@ export default function Devotees({ user, t }) {
       });
       toast.success('Devotee details saved successfully!');
     } else {
-      await apiRequest('/api/devotees', {
+      await apiRequest('/api/devotees/applications', {
         method: 'POST',
         body: JSON.stringify(form),
       });
-      toast.success('New devotee saved successfully!');
+      toast.success('Application submitted! Pending approval in Applications tab.');
     }
     await loadDevotees({ limit: Math.max(60, devotees.length), offset: 0 });
   };
@@ -105,11 +104,6 @@ export default function Devotees({ user, t }) {
     } catch (err) {
       toast.error(err.message);
     }
-  };
-
-  const handleExport = () => {
-    const token = getToken();
-    window.open(`/api/devotees/export/csv?token=${encodeURIComponent(token)}`, '_blank');
   };
 
   const handleExportPdf = async () => {
@@ -170,28 +164,9 @@ export default function Devotees({ user, t }) {
             <option value="active">{t.active}</option>
             <option value="inactive">{t.inactive}</option>
           </select>
-
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="upcoming_birthday">Sort: Upcoming Birthday</option>
-            <option value="name">Sort: Name (A–Z)</option>
-            <option value="newest">Sort: Recently Added</option>
-          </select>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <Download className="h-4 w-4" />
-            {t.exportCsv}
-          </button>
-
           <button
             type="button"
             onClick={handleExportPdf}
