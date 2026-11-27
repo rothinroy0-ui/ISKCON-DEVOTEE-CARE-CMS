@@ -34,7 +34,7 @@ async function initDb() {
   const pool = createPool();
 
   const schemaCheck = await pool
-    .query("SELECT to_regclass('public.devotee_removals') AS tbl")
+    .query("SELECT to_regclass('public.parcels') AS tbl")
     .catch(() => ({ rows: [{ tbl: null }] }));
 
   if (schemaCheck.rows[0]?.tbl) {
@@ -109,12 +109,51 @@ async function initDb() {
       UNIQUE(devotee_id, category)
     );
 
+    CREATE TABLE IF NOT EXISTS parcels (
+      id SERIAL PRIMARY KEY,
+      devotee_id INTEGER NOT NULL REFERENCES devotee_data(id) ON DELETE CASCADE,
+      devotee_code TEXT,
+      full_name TEXT,
+      contact_no TEXT,
+      town_city TEXT,
+      full_address TEXT,
+      parcel_year INTEGER NOT NULL,
+      gift_status TEXT NOT NULL DEFAULT 'none' CHECK(gift_status IN ('none', 'packed', 'in_transit', 'delivered')),
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by_name TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(devotee_id, parcel_year)
+    );
+
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS devotee_id TEXT;
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS sl_no INTEGER;
     ALTER TABLE devotee_birthday_wishes ADD COLUMN IF NOT EXISTS gift_status TEXT NOT NULL DEFAULT 'none';
     CREATE INDEX IF NOT EXISTS idx_wishes_year ON devotee_birthday_wishes(wish_year);
     CREATE INDEX IF NOT EXISTS idx_devotee_data_devotee_id ON devotee_data(devotee_id);
     CREATE INDEX IF NOT EXISTS idx_devotee_removals_category ON devotee_removals(category);
+    CREATE INDEX IF NOT EXISTS idx_parcels_year ON parcels(parcel_year);
+  `);
+
+  await pool.query(`
+    INSERT INTO parcels (
+      devotee_id, devotee_code, full_name, contact_no, town_city, full_address,
+      parcel_year, gift_status, updated_by, updated_at
+    )
+    SELECT
+      d.id,
+      d.devotee_id,
+      d.full_name,
+      COALESCE(d.contact_no::text, ''),
+      d.town_city,
+      d.full_address,
+      w.wish_year,
+      w.gift_status,
+      w.wished_by,
+      w.wished_at
+    FROM devotee_birthday_wishes w
+    JOIN devotee_data d ON d.id::text = w.devotee_id
+    WHERE w.gift_status IS NOT NULL AND w.gift_status <> 'none'
+    ON CONFLICT (devotee_id, parcel_year) DO NOTHING;
   `);
 
   await pool.query(`

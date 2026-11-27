@@ -151,7 +151,13 @@ function createAnalyticsRoutes(db, { requireAuth }) {
       const devRes = await db.query('SELECT * FROM devotee_data');
       const wishRes = await db
         .query(
-          'SELECT devotee_id, channel, gift_status FROM devotee_birthday_wishes WHERE wish_year = $1',
+          'SELECT devotee_id, channel FROM devotee_birthday_wishes WHERE wish_year = $1',
+          [currentYear]
+        )
+        .catch(() => ({ rows: [] }));
+      const parcelRes = await db
+        .query(
+          'SELECT gift_status FROM parcels WHERE parcel_year = $1',
           [currentYear]
         )
         .catch(() => ({ rows: [] }));
@@ -285,9 +291,11 @@ function createAnalyticsRoutes(db, { requireAuth }) {
       let delivered = 0;
       for (const w of wishRes.rows) {
         if (w.channel !== 'GiftOnly') wishedThisYear += 1;
-        if (w.gift_status === 'packed') packed += 1;
-        else if (w.gift_status === 'in_transit') inTransit += 1;
-        else if (w.gift_status === 'delivered') delivered += 1;
+      }
+      for (const p of parcelRes.rows) {
+        if (p.gift_status === 'packed') packed += 1;
+        else if (p.gift_status === 'in_transit') inTransit += 1;
+        else if (p.gift_status === 'delivered') delivered += 1;
       }
 
       const removals = { birthday: 0, anniversary: 0, parcel: 0, total: remRes.rows.length };

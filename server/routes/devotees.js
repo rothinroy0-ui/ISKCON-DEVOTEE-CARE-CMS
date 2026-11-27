@@ -26,7 +26,7 @@ function formatDobToIso(dobStr) {
   return `${parsed.year}-${String(parsed.month).padStart(2, '0')}-${String(parsed.day).padStart(2, '0')}`;
 }
 
-function enrichDevotee(row, wishedMap, refDate, removedMap = new Map()) {
+function enrichDevotee(row, wishedMap, refDate, removedMap = new Map(), parcelMap = new Map()) {
   const bday = computeBirthdayInfo(row.dob, refDate);
   const anniv = computeBirthdayInfo(row.anniversary_date, refDate);
   const phoneStr = row.contact_no ? String(row.contact_no) : '';
@@ -56,7 +56,7 @@ function enrichDevotee(row, wishedMap, refDate, removedMap = new Map()) {
     status: 'active',
     ...bday,
     wished_this_year: Boolean(wishRow && wishRow.channel !== 'GiftOnly'),
-    gift_status: wishRow?.gift_status || 'none',
+    gift_status: parcelMap.get(row.id) || wishRow?.gift_status || 'none',
     removed_categories: removedMap.get(row.id) || [],
   };
 }
@@ -84,6 +84,13 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     return map;
   }
 
+  async function getParcelMap(year) {
+    const res = await db
+      .query('SELECT devotee_id, gift_status FROM parcels WHERE parcel_year = $1', [year])
+      .catch(() => ({ rows: [] }));
+    return new Map(res.rows.map((r) => [Number(r.devotee_id), r.gift_status]));
+  }
+
   async function generateNextId() {
     const r = await db.query('SELECT devotee_id FROM devotee_data');
     let maxNum = 0;
@@ -103,8 +110,9 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
       const refDate = getLocalToday();
       const wishedSet = await getWishedSet(refDate.getFullYear());
       const removedMap = await getRemovedMap();
+      const parcelMap = await getParcelMap(refDate.getFullYear());
       const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
-      let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate, removedMap));
+      let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate, removedMap, parcelMap));
 
       if (search.trim()) {
         const q = search.trim().toLowerCase();
@@ -620,7 +628,10 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
   router.post('/:id/gift', requireRole('admin', 'editor'), async (req, res, next) => {
     try {
       const targetId = Number(req.params.id);
-      const existingRes = await db.query('SELECT id, full_name FROM devotee_data WHERE id = $1', [targetId]);
+      const existingRes = await db.query(
+        'SELECT id, devotee_id, full_name, contact_no, town_city, full_address FROM devotee_data WHERE id = $1',
+        [targetId]
+      );
       const existing = existingRes.rows[0];
       if (!existing) {
         return res.status(404).json({ error: 'Devotee not found' });
@@ -633,15 +644,36 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
         : 'none';
 
       await db.query(
-        `INSERT INTO devotee_birthday_wishes (devotee_id, wish_year, wished_by, channel, gift_status)
-         VALUES ($1, $2, $3, 'GiftOnly', $4)
-         ON CONFLICT (devotee_id, wish_year) DO UPDATE SET
-           gift_status = EXCLUDED.gift_status,
-           wished_by = EXCLUDED.wished_by`,
-        [String(targetId), year, req.user.id, validStatus]
+        `INSERT INTO parcels (
+          devotee_id, devotee_code, full_name, contact_no, town_city, full_address,
+          parcel_year, gift_status, updated_by, updated_by_name, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        ON CONFLICT (devotee_id, parcel_year) DO UPDATE SET
+          devotee_code = EXCLUDED.devotee_code,
+          full_name = EXCLUDED.full_name,
+          contact_no = EXCLUDED.contact_no,
+          town_city = EXCLUDED.town_city,
+          full_address = EXCLUDED.full_address,
+          gift_status = EXCLUDED.gift_status,
+          updated_by = EXCLUDED.updated_by,
+          updated_by_name = EXCLUDED.updated_by_name,
+          updated_at = NOW()`,
+        [
+          targetId,
+          existing.devotee_id || '',
+          existing.full_name || '',
+          existing.contact_no ? String(existing.contact_no) : '',
+          existing.town_city || '',
+          existing.full_address || '',
+          year,
+          validStatus,
+          req.user.id,
+          req.user.name || req.user.username,
+        ]
       );
 
-      await logAudit(db, req.user, 'BIRTHDAY_GIFT', 'devotee_data', targetId, `Gift status "${validStatus}" for ${existing.full_name}`);
+      await logAudit(db, req.user, 'PARCEL_STATUS', 'parcels', targetId, `Parcel status "${validStatus}" for ${existing.full_name}`);
       res.json({ ok: true, gift_status: validStatus });
     } catch (err) {
       next(err);
