@@ -148,14 +148,16 @@ function createAnalyticsRoutes(db, { requireAuth }) {
       const refDate = getLocalToday();
       const currentYear = refDate.getFullYear();
 
-      const [devRes, wishRes, remRes] = await Promise.all([
-        db.query('SELECT * FROM devotee_data'),
-        db.query(
+      const devRes = await db.query('SELECT * FROM devotee_data');
+      const wishRes = await db
+        .query(
           'SELECT devotee_id, channel, gift_status FROM devotee_birthday_wishes WHERE wish_year = $1',
           [currentYear]
-        ),
-        db.query('SELECT category FROM devotee_removals'),
-      ]);
+        )
+        .catch(() => ({ rows: [] }));
+      const remRes = await db
+        .query('SELECT category FROM devotee_removals')
+        .catch(() => ({ rows: [] }));
 
       const rows = devRes.rows;
       const total = rows.length;
