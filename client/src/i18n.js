@@ -92,6 +92,7 @@ export const translations = {
     active: 'Active',
     inactive: 'Inactive',
     exportCsv: 'Export CSV',
+    exportPdf: 'Export PDF',
     fullName: 'Full Name',
     spiritualName: 'Spiritual / Initiated Name',
     phone: 'Phone Number',
