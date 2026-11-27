@@ -119,7 +119,10 @@ export default function DevoteeGreetings() {
   const [occasionFilter, setOccasionFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [sendingId, setSendingId] = useState(null);
+  const [bulkSending, setBulkSending] = useState(false);
   const [sentIds, setSentIds] = useState({});
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [pendingWaLinks, setPendingWaLinks] = useState([]);
   const [visibleCount, setVisibleCount] = useState(60);
 
   useEffect(() => {
@@ -225,6 +228,110 @@ export default function DevoteeGreetings() {
       toast.error(err.message || 'Failed to send WhatsApp greeting');
     } finally {
       setSendingId(null);
+    }
+  };
+
+  const selectableFiltered = useMemo(
+    () =>
+      filtered.filter(
+        (d) => Boolean(d.whatsapp_no || d.contact_no || d.phone)
+      ),
+    [filtered]
+  );
+
+  const allSelected =
+    selectableFiltered.length > 0 &&
+    selectableFiltered.every((d) => selectedIds.has(d.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        selectableFiltered.forEach((d) => next.delete(d.id));
+      } else {
+        selectableFiltered.forEach((d) => next.add(d.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkSend = async () => {
+    const targets = devotees.filter(
+      (d) =>
+        selectedIds.has(d.id) &&
+        Boolean(d.whatsapp_no || d.contact_no || d.phone)
+    );
+    if (targets.length === 0) {
+      toast.error('Please select at least one devotee with a phone number.');
+      return;
+    }
+
+    setBulkSending(true);
+    setPendingWaLinks([]);
+    let autoCount = 0;
+    const manualLinks = [];
+
+    try {
+      for (const d of targets) {
+        const phone = d.whatsapp_no || d.contact_no || d.phone;
+        const message = buildMessageForDevotee(d);
+        try {
+          const res = await apiRequest('/api/devotees/communicate', {
+            method: 'POST',
+            body: JSON.stringify({
+              devoteeId: d.id,
+              phone,
+              message,
+              category: 'greeting',
+              subType: currentCategory.label,
+            }),
+          });
+          const wa = res?.whatsappNotification;
+          setSentIds((prev) => ({ ...prev, [d.id]: currentCategory.key }));
+          if (wa?.autoSent) {
+            autoCount += 1;
+          } else if (wa?.waUrl) {
+            manualLinks.push({
+              id: d.id,
+              name: d.initiated_name || d.spiritual_name || d.full_name,
+              phone,
+              waUrl: wa.waUrl,
+            });
+          }
+        } catch {
+          // continue sending to remaining devotees
+        }
+      }
+
+      if (autoCount > 0) {
+        toast.success(
+          `${currentCategory.label} sent automatically to ${autoCount} devotee(s)!`
+        );
+      }
+      if (manualLinks.length === 1) {
+        toast.success(
+          `Opening WhatsApp (${currentCategory.label}) for ${manualLinks[0].name}...`
+        );
+        window.open(manualLinks[0].waUrl, '_blank', 'noopener,noreferrer');
+      } else if (manualLinks.length > 1) {
+        setPendingWaLinks(manualLinks);
+        window.open(manualLinks[0].waUrl, '_blank', 'noopener,noreferrer');
+        toast.success(
+          `Opened first WhatsApp chat; ${manualLinks.length - 1} more link(s) ready below.`
+        );
+      }
+      setSelectedIds(new Set());
+    } finally {
+      setBulkSending(false);
     }
   };
 
@@ -342,6 +449,75 @@ export default function DevoteeGreetings() {
         )}
       </div>
 
+      {/* Bulk Selection Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-bold text-white">
+              {selectedIds.size} selected
+            </span>
+            <span className="text-xs font-medium text-emerald-900">
+              Ready to send {currentCategory.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              disabled={bulkSending}
+              className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkSend}
+              disabled={bulkSending}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {bulkSending
+                ? 'Sending...'
+                : `Send Greeting to Selected (${selectedIds.size})`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pendingWaLinks.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-amber-900">
+              WhatsApp Chats Ready ({pendingWaLinks.length}) — click to open each:
+            </p>
+            <button
+              type="button"
+              onClick={() => setPendingWaLinks([])}
+              className="text-xs font-semibold text-amber-700 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {pendingWaLinks.map((item) => (
+              <a
+                key={item.id}
+                href={item.waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() =>
+                  setPendingWaLinks((prev) => prev.filter((x) => x.id !== item.id))
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-50"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                {item.name} ({item.phone})
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Devotees Table */}
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         {loading ? (
@@ -357,6 +533,15 @@ export default function DevoteeGreetings() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all devotees"
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                  </th>
                   <th className="px-4 py-3">Devotee</th>
                   <th className="px-4 py-3">Phone / WhatsApp</th>
                   <th className="px-4 py-3">City</th>
@@ -383,7 +568,24 @@ export default function DevoteeGreetings() {
                       : d.marriage_anniversary;
 
                   return (
-                    <tr key={d.id} className="hover:bg-slate-50/70">
+                    <tr
+                      key={d.id}
+                      className={
+                        selectedIds.has(d.id)
+                          ? 'bg-emerald-50/40 hover:bg-emerald-50/60'
+                          : 'hover:bg-slate-50/70'
+                      }
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          disabled={!phone}
+                          checked={selectedIds.has(d.id)}
+                          onChange={() => toggleSelectOne(d.id)}
+                          aria-label={`Select ${d.full_name}`}
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-40"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-slate-900">
                           {d.initiated_name || d.spiritual_name || d.full_name}
