@@ -14,8 +14,77 @@ import {
   LogOut,
   ChevronDown,
   FolderKanban,
+  Database,
 } from 'lucide-react';
 import { hasPermission } from '../utils/permissions';
+
+function NavGroup({
+  label,
+  icon: GroupIcon,
+  items,
+  activePage,
+  onNavigate,
+  open,
+  setOpen,
+  groupRef,
+}) {
+  if (items.length === 0) return null;
+  const activeItem = items.find((item) => item.id === activePage);
+
+  return (
+    <div className="relative" ref={groupRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition ${
+          activeItem
+            ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/70'
+            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+        }`}
+      >
+        <GroupIcon
+          className={`h-4 w-4 ${activeItem ? 'text-indigo-600' : 'text-slate-400'}`}
+        />
+        <span>
+          {label}
+          {activeItem ? ` · ${activeItem.label}` : ''}
+        </span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
+          {items.map((item) => {
+            const Icon = item.icon;
+            const active = activePage === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onNavigate(item.id);
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                  active
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Icon
+                  className={`h-4 w-4 ${active ? 'text-indigo-600' : 'text-slate-400'}`}
+                />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Layout({
   user,
@@ -26,12 +95,17 @@ export default function Layout({
   children,
 }) {
   const [dirOpen, setDirOpen] = useState(false);
+  const [dataOpen, setDataOpen] = useState(false);
   const dirRef = useRef(null);
+  const dataRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dirRef.current && !dirRef.current.contains(e.target)) {
         setDirOpen(false);
+      }
+      if (dataRef.current && !dataRef.current.contains(e.target)) {
+        setDataOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -46,18 +120,21 @@ export default function Layout({
     { id: 'applications', label: t.navApplications, icon: ClipboardCheck, perm: 'applications' },
   ].filter((item) => hasPermission(user, item.perm));
 
-  const otherNavItems = [
-    { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard, perm: 'dashboard' },
-    { id: 'parcels', label: t.navParcels, icon: Package, perm: 'parcels' },
+  const dataItems = [
     { id: 'recycle-bin', label: t.navRecycleBin, icon: Recycle, perm: 'devotees_edit' },
     { id: 'bulk-fix', label: t.navBulkFix, icon: Wand2, perm: 'bulk_fix' },
     { id: 'insights', label: t.navInsights, icon: BarChart3, perm: 'insights' },
+  ].filter((item) => hasPermission(user, item.perm));
+
+  const standaloneItems = [
+    { id: 'dashboard', label: t.navDashboard, icon: LayoutDashboard, perm: 'dashboard' },
+    { id: 'parcels', label: t.navParcels, icon: Package, perm: 'parcels' },
     { id: 'users', label: t.navUsers, icon: ShieldCheck, perm: 'users' },
   ].filter((item) => hasPermission(user, item.perm));
 
-  const allAllowedItems = [...otherNavItems, ...directoryItems];
-  const isDirectoryActive = directoryItems.some((item) => item.id === activePage);
-  const activeDirectoryItem = directoryItems.find((item) => item.id === activePage);
+  const standalone = (id) => standaloneItems.find((item) => item.id === id);
+
+  const allAllowedItems = [...standaloneItems, ...directoryItems, ...dataItems];
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
@@ -68,6 +145,7 @@ export default function Layout({
         type="button"
         onClick={() => {
           setDirOpen(false);
+          setDataOpen(false);
           onNavigate(item.id);
         }}
         className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition ${
@@ -127,69 +205,33 @@ export default function Layout({
 
         {/* Navigation */}
         <nav className="flex flex-wrap items-center gap-1 border-t border-slate-100 px-4 py-2 sm:px-8">
-          {otherNavItems.slice(0, 1).map(renderNavItem)}
+          {standalone('dashboard') && renderNavItem(standalone('dashboard'))}
 
-          {directoryItems.length > 0 && (
-            <div className="relative" ref={dirRef}>
-              <button
-                type="button"
-                onClick={() => setDirOpen((prev) => !prev)}
-                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition ${
-                  isDirectoryActive
-                    ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/70'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                <FolderKanban
-                  className={`h-4 w-4 ${
-                    isDirectoryActive ? 'text-indigo-600' : 'text-slate-400'
-                  }`}
-                />
-                <span>
-                  Devotee Directory
-                  {activeDirectoryItem ? ` · ${activeDirectoryItem.label}` : ''}
-                </span>
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${
-                    dirOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+          <NavGroup
+            label="Devotee Directory"
+            icon={FolderKanban}
+            items={directoryItems}
+            activePage={activePage}
+            onNavigate={onNavigate}
+            open={dirOpen}
+            setOpen={setDirOpen}
+            groupRef={dirRef}
+          />
 
-              {dirOpen && (
-                <div className="absolute left-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
-                  {directoryItems.map((item) => {
-                    const Icon = item.icon;
-                    const active = activePage === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          setDirOpen(false);
-                          onNavigate(item.id);
-                        }}
-                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
-                          active
-                            ? 'bg-indigo-50 text-indigo-700'
-                            : 'text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        <Icon
-                          className={`h-4 w-4 ${
-                            active ? 'text-indigo-600' : 'text-slate-400'
-                          }`}
-                        />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          {standalone('parcels') && renderNavItem(standalone('parcels'))}
 
-          {otherNavItems.slice(1).map(renderNavItem)}
+          <NavGroup
+            label="Data Management"
+            icon={Database}
+            items={dataItems}
+            activePage={activePage}
+            onNavigate={onNavigate}
+            open={dataOpen}
+            setOpen={setDataOpen}
+            groupRef={dataRef}
+          />
+
+          {standalone('users') && renderNavItem(standalone('users'))}
         </nav>
       </header>
 
