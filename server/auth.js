@@ -62,7 +62,7 @@ const DEFAULT_PERMISSIONS_BY_ROLE = {
 
 function resolvePermissions(user) {
   if (!user) return [];
-  if (user.role === 'admin' && !user.permissions) {
+  if (user.role === 'admin') {
     return [...ALL_PERMISSIONS];
   }
   if (Array.isArray(user.permissions)) {
