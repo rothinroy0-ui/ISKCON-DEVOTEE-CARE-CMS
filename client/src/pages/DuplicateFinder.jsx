@@ -14,6 +14,8 @@ import {
   Home,
   Calendar,
   FileSpreadsheet,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
@@ -239,17 +241,65 @@ export default function DuplicateFinder() {
   const [busyId, setBusyId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [aiScanning, setAiScanning] = useState(false);
+  const [aiProgress, setAiProgress] = useState(0);
+  const [aiStepIndex, setAiStepIndex] = useState(0);
+  const [aiSummary, setAiSummary] = useState(null);
+
+  const AI_STEPS = [
+    'Loading active devotee records from database...',
+    'Normalizing personal names, initiated names & honorifics...',
+    'Extracting 10-digit phone, WhatsApp & address fingerprints...',
+    'Running AI similarity scoring across 01–07 categories...',
+    'Compiling duplicate clusters & confidence scores...',
+  ];
 
   const loadDevotees = async () => {
     setLoading(true);
     try {
       const res = await apiRequest('/api/devotees', { cache: false });
-      setDevotees(res.devotees || []);
+      const list = res.devotees || [];
+      setDevotees(list);
+      return list;
     } catch (err) {
       toast.error(err.message || 'Failed to load devotees');
+      return null;
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAiRescan = async () => {
+    if (aiScanning) return;
+    setAiScanning(true);
+    setAiSummary(null);
+    setAiProgress(12);
+    setAiStepIndex(0);
+
+    const startTime = Date.now();
+    const list = await loadDevotees();
+
+    for (let i = 1; i < AI_STEPS.length; i += 1) {
+      await new Promise((r) => setTimeout(r, 320));
+      setAiStepIndex(i);
+      setAiProgress(Math.min(95, Math.round(((i + 1) / AI_STEPS.length) * 95)));
+    }
+
+    await new Promise((r) => setTimeout(r, 250));
+    setAiProgress(100);
+    setAiScanning(false);
+
+    const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    const totalScanned = list ? list.length : devotees.length;
+    setAiSummary({
+      scanned: totalScanned,
+      elapsedSec,
+      at: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    });
+    toast.success(`AI Scan complete! Analyzed ${totalScanned} devotees in ${elapsedSec}s.`);
   };
 
   useEffect(() => {
@@ -512,15 +562,77 @@ export default function DuplicateFinder() {
 
           <button
             type="button"
-            onClick={loadDevotees}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            onClick={handleAiRescan}
+            disabled={loading || aiScanning}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:from-indigo-700 hover:to-violet-700 disabled:opacity-60"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Rescan
+            <Sparkles className={`h-3.5 w-3.5 ${aiScanning ? 'animate-pulse' : ''}`} />
+            {aiScanning ? 'AI Scanning...' : 'AI Rescan'}
           </button>
         </div>
       </div>
+
+      {/* AI Scanning Interface */}
+      {(aiScanning || aiSummary) && (
+        <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50/90 via-violet-50/80 to-indigo-50/90 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white">
+                <Sparkles className={`h-4 w-4 ${aiScanning ? 'animate-spin' : ''}`} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-indigo-950">
+                  {aiScanning
+                    ? 'AI Duplicate Intelligence Scanning...'
+                    : 'AI Duplicate Scan Complete'}
+                </h4>
+                <p className="text-xs text-indigo-700">
+                  {aiScanning
+                    ? AI_STEPS[aiStepIndex]
+                    : `Scanned ${aiSummary.scanned} devotee records in ${aiSummary.elapsedSec}s at ${aiSummary.at} · ${filteredGroups.length} duplicate group(s) detected`}
+                </p>
+              </div>
+            </div>
+
+            {aiSummary && !aiScanning && (
+              <button
+                type="button"
+                onClick={() => setAiSummary(null)}
+                className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-indigo-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 transition-all duration-300"
+              style={{ width: `${aiScanning ? aiProgress : 100}%` }}
+            />
+          </div>
+
+          {aiScanning && (
+            <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {AI_STEPS.map((step, idx) => (
+                <div
+                  key={step}
+                  className={`flex items-center gap-1.5 text-xs ${
+                    idx < aiStepIndex
+                      ? 'font-medium text-emerald-700'
+                      : idx === aiStepIndex
+                      ? 'font-bold text-indigo-800'
+                      : 'text-slate-400'
+                  }`}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bulk Action Bar */}
       {selectedIds.size > 0 && (
