@@ -26,7 +26,7 @@ function formatDobToIso(dobStr) {
   return `${parsed.year}-${String(parsed.month).padStart(2, '0')}-${String(parsed.day).padStart(2, '0')}`;
 }
 
-function enrichDevotee(row, wishedMap, refDate) {
+function enrichDevotee(row, wishedMap, refDate, removedMap = new Map()) {
   const bday = computeBirthdayInfo(row.dob, refDate);
   const anniv = computeBirthdayInfo(row.anniversary_date, refDate);
   const phoneStr = row.contact_no ? String(row.contact_no) : '';
@@ -57,6 +57,7 @@ function enrichDevotee(row, wishedMap, refDate) {
     ...bday,
     wished_this_year: Boolean(wishRow && wishRow.channel !== 'GiftOnly'),
     gift_status: wishRow?.gift_status || 'none',
+    removed_categories: removedMap.get(row.id) || [],
   };
 }
 
@@ -70,6 +71,17 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
       [year]
     );
     return new Map(res.rows.map((r) => [String(r.devotee_id), r]));
+  }
+
+  async function getRemovedMap() {
+    const res = await db.query('SELECT devotee_id, category FROM devotee_removals');
+    const map = new Map();
+    for (const r of res.rows) {
+      const id = Number(r.devotee_id);
+      if (!map.has(id)) map.set(id, []);
+      map.get(id).push(r.category);
+    }
+    return map;
   }
 
   async function generateNextId() {
@@ -89,10 +101,12 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     try {
       const { search = '', month = '', sort = 'upcoming_birthday' } = req.query;
       const refDate = getLocalToday();
-      const wishedSet = await getWishedSet(refDate.getFullYear());
-
-      const result = await db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC');
-      let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate));
+      const [wishedSet, removedMap, result] = await Promise.all([
+        getWishedSet(refDate.getFullYear()),
+        getRemovedMap(),
+        db.query('SELECT * FROM devotee_data ORDER BY devotee_id ASC'),
+      ]);
+      let list = result.rows.map((r) => enrichDevotee(r, wishedSet, refDate, removedMap));
 
       if (search.trim()) {
         const q = search.trim().toLowerCase();
@@ -131,6 +145,113 @@ function createDevoteeRoutes(db, { requireAuth, requireRole }) {
     try {
       const next_id = await generateNextId();
       res.json({ next_id });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/removals/list', async (_req, res, next) => {
+    try {
+      const result = await db.query(`
+        SELECT
+          r.id AS removal_id,
+          r.category,
+          r.reason,
+          r.removed_by_name,
+          r.removed_at,
+          d.id,
+          d.sl_no,
+          d.devotee_id,
+          d.full_name,
+          d.initiated_name,
+          d.spouses_name,
+          d.contact_no,
+          d.town_city,
+          d.full_address,
+          d.dob,
+          d.anniversary_date,
+          d.upload_your_passport_size_photo
+        FROM devotee_removals r
+        JOIN devotee_data d ON d.id = r.devotee_id
+        ORDER BY r.removed_at DESC
+      `);
+      const removals = result.rows.map((row) => ({
+        ...row,
+        contact_no: row.contact_no ? String(row.contact_no) : '',
+        phone: row.contact_no ? String(row.contact_no) : '',
+        photo_url: normalizePhotoUrl(row.upload_your_passport_size_photo),
+      }));
+      res.json({ removals });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/remove-from-tab', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const category = String(req.body?.category || '').trim().toLowerCase();
+      const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+
+      if (!['birthday', 'anniversary', 'parcel'].includes(category)) {
+        return res.status(400).json({ error: 'Invalid category (must be birthday, anniversary, or parcel)' });
+      }
+
+      const devRes = await db.query('SELECT id, full_name, devotee_id FROM devotee_data WHERE id = $1', [targetId]);
+      if (devRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Devotee not found' });
+      }
+
+      await db.query(
+        `INSERT INTO devotee_removals (devotee_id, category, reason, removed_by, removed_by_name)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (devotee_id, category) DO UPDATE SET
+           reason = COALESCE(EXCLUDED.reason, devotee_removals.reason),
+           removed_by = EXCLUDED.removed_by,
+           removed_by_name = EXCLUDED.removed_by_name,
+           removed_at = NOW()`,
+        [targetId, category, reason, req.user.id, req.user.name || req.user.username]
+      );
+
+      await logAudit(
+        db,
+        req.user,
+        'REMOVE_FROM_TAB',
+        'DEVOTEE',
+        targetId,
+        `Moved ${devRes.rows[0].full_name} (${devRes.rows[0].devotee_id}) from ${category} to Removal Record`
+      );
+
+      res.json({ ok: true, devotee_id: targetId, category });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/:id/remove-from-tab/:category', requireRole('admin', 'editor'), async (req, res, next) => {
+    try {
+      const targetId = Number(req.params.id);
+      const category = String(req.params.category || '').trim().toLowerCase();
+
+      if (!['birthday', 'anniversary', 'parcel'].includes(category)) {
+        return res.status(400).json({ error: 'Invalid category' });
+      }
+
+      await db.query(
+        'DELETE FROM devotee_removals WHERE devotee_id = $1 AND category = $2',
+        [targetId, category]
+      );
+
+      await logAudit(
+        db,
+        req.user,
+        'RESTORE_TO_TAB',
+        'DEVOTEE',
+        targetId,
+        `Restored devotee #${targetId} back to ${category}`
+      );
+
+      res.json({ ok: true, devotee_id: targetId, category });
     } catch (err) {
       next(err);
     }

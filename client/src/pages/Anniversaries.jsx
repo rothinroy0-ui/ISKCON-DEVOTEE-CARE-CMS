@@ -9,9 +9,11 @@ import {
   Search,
   MapPin,
   ChevronDown,
+  ArchiveX,
   X,
 } from 'lucide-react';
 import { apiRequest } from '../api';
+import { useToast } from '../components/Toast';
 import { useImagePreview } from '../components/ImagePreviewModal';
 import { exportCelebrationPdf } from '../utils/pdfExport';
 
@@ -30,8 +32,10 @@ const MONTHS = [
   { month: 12, name: 'December', shortName: 'Dec' },
 ];
 
-export default function Anniversaries() {
+export default function Anniversaries({ user }) {
+  const toast = useToast();
   const { openImage } = useImagePreview();
+  const canEdit = user?.role === 'admin' || user?.role === 'editor';
   const [allDevotees, setAllDevotees] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [exactDate, setExactDate] = useState('');
@@ -60,7 +64,10 @@ export default function Anniversaries() {
         Boolean(s) && !['null', 'none', 'na', 'n a', 'nil'].includes(s);
 
       const raw = (dev.devotees || []).filter(
-        (d) => d.anniversary_month !== null && d.anniversary_day !== null
+        (d) =>
+          d.anniversary_month !== null &&
+          d.anniversary_day !== null &&
+          !d.removed_categories?.includes('anniversary')
       );
 
       const deduped = [];
@@ -233,6 +240,20 @@ export default function Anniversaries() {
       ).length,
     [allDevotees]
   );
+
+  const handleRemoveFromAnniversaries = async (d) => {
+    if (!canEdit) return;
+    try {
+      await apiRequest(`/api/devotees/${d.id}/remove-from-tab`, {
+        method: 'POST',
+        body: JSON.stringify({ category: 'anniversary' }),
+      });
+      setAllDevotees((prev) => prev.filter((item) => item.id !== d.id));
+      toast.success(`${d.full_name} moved to Removal Record.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove record');
+    }
+  };
 
   if (loading && allDevotees.length === 0) {
     return (
@@ -681,6 +702,18 @@ export default function Anniversaries() {
                     </div>
                   </div>
                 </div>
+
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFromAnniversaries(d)}
+                    title="Move to Removal Record (keeps devotee in main database)"
+                    className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    <ArchiveX className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
             {filteredDevotees.length > visibleCount && (

@@ -84,11 +84,23 @@ async function initDb() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS devotee_removals (
+      id SERIAL PRIMARY KEY,
+      devotee_id INTEGER NOT NULL REFERENCES devotee_data(id) ON DELETE CASCADE,
+      category TEXT NOT NULL CHECK(category IN ('birthday', 'anniversary', 'parcel')),
+      reason TEXT,
+      removed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      removed_by_name TEXT,
+      removed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(devotee_id, category)
+    );
+
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS devotee_id TEXT;
     ALTER TABLE devotee_data ADD COLUMN IF NOT EXISTS sl_no INTEGER;
     ALTER TABLE devotee_birthday_wishes ADD COLUMN IF NOT EXISTS gift_status TEXT NOT NULL DEFAULT 'none';
     CREATE INDEX IF NOT EXISTS idx_wishes_year ON devotee_birthday_wishes(wish_year);
     CREATE INDEX IF NOT EXISTS idx_devotee_data_devotee_id ON devotee_data(devotee_id);
+    CREATE INDEX IF NOT EXISTS idx_devotee_removals_category ON devotee_removals(category);
   `);
 
   await pool.query(`

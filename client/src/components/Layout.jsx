@@ -5,6 +5,7 @@ import {
   Cake,
   Heart,
   Package,
+  ArchiveX,
   ShieldCheck,
   LogOut,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function Layout({
     { id: 'birthdays', label: t.navBirthdays, icon: Cake },
     { id: 'anniversaries', label: t.navAnniversaries, icon: Heart },
     { id: 'parcels', label: t.navParcels, icon: Package },
+    { id: 'removals', label: t.navRemovals, icon: ArchiveX },
   ];
 
   if (user?.role === 'admin') {

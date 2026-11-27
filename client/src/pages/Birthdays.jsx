@@ -10,6 +10,7 @@ import {
   Sparkles,
   MapPin,
   ChevronDown,
+  ArchiveX,
   X,
 } from 'lucide-react';
 import { apiRequest } from '../api';
@@ -44,7 +45,11 @@ export default function Birthdays({ user, t }) {
         apiRequest('/api/devotees?sort=upcoming_birthday'),
       ]);
       setAnalytics(ana);
-      setAllDevotees(dev.devotees || []);
+      setAllDevotees(
+        (dev.devotees || []).filter(
+          (d) => !d.removed_categories?.includes('birthday')
+        )
+      );
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load birthday data');
@@ -163,6 +168,20 @@ export default function Birthdays({ user, t }) {
       await loadAll();
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleRemoveFromBirthdays = async (d) => {
+    if (!canEdit) return;
+    try {
+      await apiRequest(`/api/devotees/${d.id}/remove-from-tab`, {
+        method: 'POST',
+        body: JSON.stringify({ category: 'birthday' }),
+      });
+      setAllDevotees((prev) => prev.filter((item) => item.id !== d.id));
+      toast.success(`${d.full_name} moved to Removal Record.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove record');
     }
   };
 
@@ -609,18 +628,29 @@ export default function Birthdays({ user, t }) {
                   </div>
 
                   {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => toggleWish(d)}
-                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                        d.wished_this_year
-                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      {d.wished_this_year ? t.wished : t.markWished}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleWish(d)}
+                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                          d.wished_this_year
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {d.wished_this_year ? t.wished : t.markWished}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFromBirthdays(d)}
+                        title="Move to Removal Record (keeps devotee in main database)"
+                        className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                      >
+                        <ArchiveX className="h-3.5 w-3.5" />
+                        Remove
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

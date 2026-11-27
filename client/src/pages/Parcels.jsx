@@ -10,6 +10,7 @@ import {
   Search,
   FileSpreadsheet,
   FileText,
+  ArchiveX,
 } from 'lucide-react';
 import { apiRequest } from '../api';
 import { useToast } from '../components/Toast';
@@ -58,7 +59,11 @@ export default function Parcels({ user }) {
     setLoading(true);
     try {
       const res = await apiRequest('/api/devotees?sort=upcoming_birthday');
-      setAllDevotees(res.devotees || []);
+      setAllDevotees(
+        (res.devotees || []).filter(
+          (d) => !d.removed_categories?.includes('parcel')
+        )
+      );
     } catch (err) {
       toast.error(err.message || 'Failed to load parcel records');
     } finally {
@@ -187,6 +192,20 @@ export default function Parcels({ user }) {
       toast.success(`Parcel status for ${d.full_name} saved: ${label}`);
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleRemoveFromParcels = async (d) => {
+    if (!canEdit) return;
+    try {
+      await apiRequest(`/api/devotees/${d.id}/remove-from-tab`, {
+        method: 'POST',
+        body: JSON.stringify({ category: 'parcel' }),
+      });
+      setAllDevotees((prev) => prev.filter((item) => item.id !== d.id));
+      toast.success(`${d.full_name} moved to Removal Record.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove record');
     }
   };
 
@@ -597,17 +616,28 @@ export default function Parcels({ user }) {
                 </div>
 
                 {canEdit && (
-                  <select
-                    value={d.gift_status || 'none'}
-                    onChange={(e) => updateGiftStatus(d, e.target.value)}
-                    className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
-                  >
-                    {GIFT_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={d.gift_status || 'none'}
+                      onChange={(e) => updateGiftStatus(d, e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
+                    >
+                      {GIFT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromParcels(d)}
+                      title="Move to Removal Record (keeps devotee in main database)"
+                      className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      <ArchiveX className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
